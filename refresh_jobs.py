@@ -1008,6 +1008,7 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
                 "fallback_kept": 0,
                 "duplicates_removed": 0,
                 "rejections": {},
+                "rejectedSamples": [],
             },
         )
         for job in jobs_by_source.get(source["name"], []):
@@ -1017,6 +1018,18 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
                 source_diag["strict_kept"] += 1
                 continue
             source_diag["rejections"][reason] = source_diag["rejections"].get(reason, 0) + 1
+            if len(source_diag["rejectedSamples"]) < 25:
+                source_diag["rejectedSamples"].append(
+                    {
+                        "reason": reason,
+                        "title": job.get("title", ""),
+                        "company": job.get("company") or source.get("company") or "Unknown company",
+                        "location": job.get("location", ""),
+                        "salary": job.get("salary", ""),
+                        "link": job.get("link", ""),
+                        "source": source_name,
+                    }
+                )
 
             company = job.get("company") or source.get("company") or "Unknown company"
             metadata_source = {
@@ -1073,6 +1086,18 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
                 source_diag["fallback_kept"] += 1
             else:
                 source_diag["rejections"][fallback_reason] = source_diag["rejections"].get(fallback_reason, 0) + 1
+                if len(source_diag["rejectedSamples"]) < 25:
+                    source_diag["rejectedSamples"].append(
+                        {
+                            "reason": fallback_reason,
+                            "title": fallback_job.get("title", ""),
+                            "company": fallback_job.get("company", ""),
+                            "location": fallback_job.get("location", ""),
+                            "salary": fallback_job.get("salary", ""),
+                            "link": fallback_job.get("link", ""),
+                            "source": source_name,
+                        }
+                    )
 
     deduped_jobs = dedupe_jobs(normalized_jobs)
     deduped_fallback_jobs = dedupe_jobs(fallback_jobs)
