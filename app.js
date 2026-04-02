@@ -8,12 +8,15 @@ const state = {
   criteriaPanelOpen: false,
   calendarPanelOpen: false,
   isRefreshing: false,
+  refreshStatus: null,
+  refreshPollTimer: null,
 };
 
 const elements = {
   activeDateCaption: document.querySelector("#active-date-caption"),
   todayLabel: document.querySelector("#today-label"),
   digestSummary: document.querySelector("#digest-summary"),
+  refreshStatus: document.querySelector("#refresh-status"),
   heroTitle: document.querySelector("#hero-title"),
   heroCopy: document.querySelector("#hero-copy"),
   resultsTitle: document.querySelector("#results-title"),
@@ -62,9 +65,11 @@ boot();
 
 async function boot() {
   await refreshState();
+  await refreshRefreshStatus();
   syncSelectedDate();
   render();
   wireEvents();
+  syncRefreshPolling();
 }
 
 function wireEvents() {
@@ -93,6 +98,11 @@ async function refreshState() {
   state.digestsByDate = payload.digestsByDate || {};
 }
 
+async function refreshRefreshStatus() {
+  const response = await fetch("/api/refresh-status");
+  state.refreshStatus = await response.json();
+}
+
 function toggleUtilityPanel(panelName) {
   if (panelName === "criteria") {
     state.criteriaPanelOpen = !state.criteriaPanelOpen;
@@ -116,7 +126,6 @@ async function handleSearchSave(event) {
   state.isRefreshing = true;
   elements.toggleCriteria.disabled = true;
   elements.toggleCalendar.disabled = true;
-  elements.digestSummary.textContent = `Refreshing results for ${payload.roleName || "your search"}...`;
   await fetch("/api/search-preferences", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -131,18 +140,17 @@ async function handleSearchSave(event) {
     if (!refreshResponse.ok) {
       throw new Error("Refresh failed");
     }
-    await refreshState();
-    state.selectedDateKey = getLatestDigestDate();
-    state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
+    await refreshRefreshStatus();
+    syncRefreshPolling();
     state.criteriaPanelOpen = false;
     render();
     renderUtilityPanels();
   } catch (error) {
     await refreshState();
+    await refreshRefreshStatus();
     render();
     window.alert("The search criteria were saved, but the refresh did not complete. Please try again in a moment.");
   } finally {
-    state.isRefreshing = false;
     elements.toggleCriteria.disabled = false;
     elements.toggleCalendar.disabled = false;
   }
@@ -215,6 +223,7 @@ function render() {
   elements.emptyState.hidden = visibleGroupsCount > 0;
 
   renderDynamicText();
+  renderRefreshStatus();
   renderSearchForm();
   renderFilterState();
   renderUtilityPanels();
@@ -229,9 +238,36 @@ function renderDynamicText() {
   const jobs = sortJobs(digest?.jobs || []);
   const recommendedCount = jobs.filter((job) => !job.applied && !job.notInterested).length;
   elements.heroTitle.textContent = `${prefs.roleName || "Product roles"} in ${locationLabel}`;
-  elements.heroCopy.textContent = `Tracking up to ${prefs.resultLimit || 50} daily roles with base comp between ${formatCurrency(prefs.compMin)} and ${formatCurrency(prefs.compMax)}.`;
+  if (state.isRefreshing || state.refreshStatus?.state === "running") {
+    elements.heroCopy.textContent = `Updating ${prefs.roleName || "your search"} results in the background. You can keep browsing while the next digest loads.`;
+  } else {
+    elements.heroCopy.textContent = `Tracking up to ${prefs.resultLimit || 50} daily roles with base comp between ${formatCurrency(prefs.compMin)} and ${formatCurrency(prefs.compMax)}.`;
+  }
   elements.resultsTitle.textContent = `${recommendedCount} recommended roles for ${locationLabel}`;
   document.title = `${prefs.roleName || "Product Manager"} Jobs | ${locationLabel}`;
+}
+
+function renderRefreshStatus() {
+  const refresh = state.refreshStatus;
+  if (!refresh || refresh.state === "idle") {
+    elements.refreshStatus.hidden = true;
+    elements.refreshStatus.textContent = "";
+    return;
+  }
+
+  elements.refreshStatus.hidden = false;
+  elements.refreshStatus.classList.toggle("is-error", refresh.state === "failed");
+  elements.refreshStatus.classList.toggle("is-success", refresh.state === "completed");
+
+  if (refresh.state === "running") {
+    elements.refreshStatus.textContent = refresh.message || "Refreshing live job sources...";
+    return;
+  }
+  if (refresh.state === "completed") {
+    elements.refreshStatus.textContent = `${refresh.message || "Refresh complete."} Loaded ${refresh.jobCount || 0} jobs.`;
+    return;
+  }
+  elements.refreshStatus.textContent = refresh.error || refresh.message || "Refresh failed.";
 }
 
 function renderSearchForm() {
@@ -478,6 +514,31 @@ function syncSelectedDate() {
 function getLatestDigestDate() {
   const availableDates = Object.keys(state.digestsByDate).sort();
   return availableDates.at(-1) || getDateKey(new Date());
+}
+
+function syncRefreshPolling() {
+  if (state.refreshPollTimer) {
+    window.clearInterval(state.refreshPollTimer);
+    state.refreshPollTimer = null;
+  }
+  if (!state.refreshStatus || state.refreshStatus.state !== "running") {
+    state.isRefreshing = false;
+    return;
+  }
+  state.isRefreshing = true;
+  state.refreshPollTimer = window.setInterval(async () => {
+    await refreshRefreshStatus();
+    if (state.refreshStatus?.state === "running") {
+      render();
+      return;
+    }
+    await refreshState();
+    state.selectedDateKey = getLatestDigestDate();
+    state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
+    state.isRefreshing = false;
+    syncRefreshPolling();
+    render();
+  }, 2500);
 }
 
 function getDateKey(date) {

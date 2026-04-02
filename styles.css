@@ -197,6 +197,20 @@ h2 {
   line-height: 1.5;
 }
 
+.refresh-status {
+  margin-top: 10px;
+  color: var(--accent-deep);
+  font-weight: 800;
+}
+
+.refresh-status.is-success {
+  color: #2f6b22;
+}
+
+.refresh-status.is-error {
+  color: #a63d40;
+}
+
 .panel-status {
   padding-top: 18px;
   padding-bottom: 18px;

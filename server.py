@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import threading
 from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -490,6 +491,16 @@ def resolve_data_dir() -> Path:
 
 DATA_DIR = resolve_data_dir()
 STATE_PATH = DATA_DIR / "state.json"
+REFRESH_STATUS = {
+    "state": "idle",
+    "message": "",
+    "startedAt": None,
+    "completedAt": None,
+    "jobCount": 0,
+    "date": None,
+    "error": "",
+}
+REFRESH_LOCK = threading.Lock()
 
 
 def load_json_file(path: Path) -> Optional[dict]:
@@ -605,6 +616,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/state":
             self.send_json(load_state())
             return
+        if self.path == "/api/refresh-status":
+            self.send_json(get_refresh_status())
+            return
         super().do_GET()
 
     def do_PATCH(self) -> None:
@@ -647,51 +661,24 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_json({"ok": True, "searchPreferences": state["searchPreferences"]})
 
     def handle_refresh_digest(self) -> None:
-        try:
-            import refresh_jobs
-        except Exception as error:
-            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Unable to load refresh pipeline: {error}")
-            return
-
-        try:
-            refresh_jobs.require_refresh_dependencies()
-            criteria, sources = refresh_jobs.load_source_catalog()
-            jobs_by_source, source_report = refresh_jobs.fetch_all_jobs(criteria, sources)
-            digest, diagnostics = refresh_jobs.build_digest(jobs_by_source, criteria, sources)
-            refresh_jobs.GENERATED_DIGEST_PATH.write_text(json.dumps(digest, indent=2))
-            refresh_jobs.GENERATED_REPORT_PATH.write_text(
-                json.dumps(
-                    {
-                        "criteria": {
-                            "roleName": criteria.role_name,
-                            "city": criteria.city,
-                            "state": criteria.state,
-                            "salaryMin": criteria.salary_min,
-                            "salaryMax": criteria.salary_max,
-                            "resultLimit": criteria.max_jobs_per_day,
-                        },
-                        "fetch": source_report,
-                        "analysis": diagnostics,
-                    },
-                    indent=2,
-                )
+        with REFRESH_LOCK:
+            if REFRESH_STATUS["state"] == "running":
+                self.send_json({"ok": True, "queued": False, "status": get_refresh_status()})
+                return
+            REFRESH_STATUS.update(
+                {
+                    "state": "running",
+                    "message": "Refreshing live job sources...",
+                    "startedAt": utc_now_iso(),
+                    "completedAt": None,
+                    "jobCount": 0,
+                    "date": None,
+                    "error": "",
+                }
             )
-            import_digest_payload(digest)
-        except RuntimeError as error:
-            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
-            return
-        except Exception as error:
-            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Refresh failed: {error}")
-            return
 
-        self.send_json(
-            {
-                "ok": True,
-                "date": digest["date"],
-                "jobCount": len(digest["jobs"]),
-                "summary": digest["summary"],
-            }
-        )
+        threading.Thread(target=run_refresh_job, daemon=True).start()
+        self.send_json({"ok": True, "queued": True, "status": get_refresh_status()}, status=HTTPStatus.ACCEPTED)
 
     def handle_update_job(self) -> None:
         date_value, job_id = self.parse_job_path(require_job_id=True)
@@ -763,6 +750,60 @@ def run_server() -> None:
     server = ThreadingHTTPServer((HOST, PORT), AppHandler)
     print(f"Serving Bay PM Jobs on http://{HOST}:{PORT}")
     server.serve_forever()
+
+
+def get_refresh_status() -> dict:
+    with REFRESH_LOCK:
+        return dict(REFRESH_STATUS)
+
+
+def run_refresh_job() -> None:
+    try:
+        import refresh_jobs
+        refresh_jobs.require_refresh_dependencies()
+        criteria, sources = refresh_jobs.load_source_catalog()
+        jobs_by_source, source_report = refresh_jobs.fetch_all_jobs(criteria, sources)
+        digest, diagnostics = refresh_jobs.build_digest(jobs_by_source, criteria, sources)
+        refresh_jobs.GENERATED_DIGEST_PATH.write_text(json.dumps(digest, indent=2))
+        refresh_jobs.GENERATED_REPORT_PATH.write_text(
+            json.dumps(
+                {
+                    "criteria": {
+                        "roleName": criteria.role_name,
+                        "city": criteria.city,
+                        "state": criteria.state,
+                        "salaryMin": criteria.salary_min,
+                        "salaryMax": criteria.salary_max,
+                        "resultLimit": criteria.max_jobs_per_day,
+                    },
+                    "fetch": source_report,
+                    "analysis": diagnostics,
+                },
+                indent=2,
+            )
+        )
+        import_digest_payload(digest)
+        with REFRESH_LOCK:
+            REFRESH_STATUS.update(
+                {
+                    "state": "completed",
+                    "message": "Refresh complete.",
+                    "completedAt": utc_now_iso(),
+                    "jobCount": len(digest["jobs"]),
+                    "date": digest["date"],
+                    "error": "",
+                }
+            )
+    except Exception as error:
+        with REFRESH_LOCK:
+            REFRESH_STATUS.update(
+                {
+                    "state": "failed",
+                    "message": "Refresh failed.",
+                    "completedAt": utc_now_iso(),
+                    "error": str(error),
+                }
+            )
 
 
 if __name__ == "__main__":
