@@ -465,6 +465,23 @@
       "maxDetailPages": 60
     },
     {
+      "name": "BetterUp careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "BetterUp",
+      "companyStatus": "private",
+      "companySizeHint": "Late-stage private company",
+      "companySharesNote": "Private company, no public shares",
+      "industries": ["saas", "marketplace"],
+      "listingUrls": [
+        "https://jobs.ashbyhq.com/betterup"
+      ],
+      "allowedHosts": ["jobs.ashbyhq.com"],
+      "detailLinkPatterns": ["/betterup/"],
+      "maxDetailPages": 24
+    },
+    {
       "name": "Greenhouse boards",
       "type": "greenhouse",
       "enabled": false,
