@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bay PM Jobs</title>
+    <meta
+      name="description"
+      content="Review a daily Bay Area product manager job digest with public-company prioritization."
+    />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <div class="hero-copy-block">
+          <p class="eyebrow">Bay Area job search agent</p>
+          <h1>Public-company PM roles first. Startups right behind.</h1>
+          <p class="hero-copy">
+            A daily digest app for Bay Area product roles in the $190k-$220k range,
+            weighted toward fintech and marketplaces and enriched with equity,
+            benefits, and recruiter details.
+          </p>
+        </div>
+        <div class="hero-card">
+          <p class="panel-label">Search frame</p>
+          <ul class="criteria-list" id="criteria-list"></ul>
+          <div class="hero-actions">
+            <button id="open-import-dialog" class="primary-button" type="button">
+              Import daily digest
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-status">
+        <div>
+          <p class="panel-label" id="active-date-caption">Digest date</p>
+          <h2 id="today-label"></h2>
+          <p id="digest-summary" class="status-subtitle"></p>
+        </div>
+        <div class="status-grid">
+          <div class="status-card">
+            <span class="status-value" id="job-count">0</span>
+            <span class="status-text">jobs tracked</span>
+          </div>
+          <div class="status-card">
+            <span class="status-value" id="public-count">0</span>
+            <span class="status-text">public companies</span>
+          </div>
+          <div class="status-card">
+            <span class="status-value" id="shortlisted-count">0</span>
+            <span class="status-text">shortlisted</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-label">Digest calendar</p>
+            <h2 id="calendar-month-label"></h2>
+          </div>
+          <div class="panel-actions">
+            <button id="previous-month" class="secondary-button" type="button">Back</button>
+            <button id="jump-today" class="text-button" type="button">Jump to today</button>
+            <button id="next-month" class="secondary-button" type="button">Next</button>
+          </div>
+        </div>
+        <div class="calendar-weekdays">
+          <span>Sun</span>
+          <span>Mon</span>
+          <span>Tue</span>
+          <span>Wed</span>
+          <span>Thu</span>
+          <span>Fri</span>
+          <span>Sat</span>
+        </div>
+        <div id="calendar-grid" class="calendar-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head jobs-head">
+          <div>
+            <p class="panel-label">Daily digest</p>
+            <h2>Ranked job matches</h2>
+          </div>
+          <div class="filters" role="group" aria-label="Digest filters">
+            <button class="filter-chip is-active" data-filter="all" type="button">All</button>
+            <button class="filter-chip" data-filter="public" type="button">Public only</button>
+            <button class="filter-chip" data-filter="private" type="button">Private only</button>
+            <button class="filter-chip" data-filter="shortlisted" type="button">Shortlisted</button>
+          </div>
+        </div>
+        <section class="job-group">
+          <div class="group-head">
+            <div>
+              <p class="panel-label">Exact-fit</p>
+              <h3>Most aligned to target comp</h3>
+            </div>
+            <p class="group-copy">Public companies still rank ahead inside each section.</p>
+          </div>
+          <div id="exact-job-list" class="job-list"></div>
+        </section>
+        <section class="job-group">
+          <div class="group-head">
+            <div>
+              <p class="panel-label">Overlap-fit</p>
+              <h3>Worth checking, but salary range stretches</h3>
+            </div>
+            <p class="group-copy">Useful for larger equity packages or especially strong fintech and marketplace relevance.</p>
+          </div>
+          <div id="overlap-job-list" class="job-list"></div>
+        </section>
+        <p id="empty-state" class="empty-state">No jobs match the current filter.</p>
+      </section>
+    </main>
+
+    <dialog id="import-dialog" class="import-dialog">
+      <form method="dialog" class="import-card" id="import-form">
+        <div class="panel-head">
+          <div>
+            <p class="panel-label">Daily import</p>
+            <h2>Paste a live digest JSON payload</h2>
+            <p class="status-subtitle">
+              This lets an automation or manual run drop fresh search results directly into the app.
+            </p>
+          </div>
+        </div>
+
+        <label class="import-field">
+          <span class="job-label">Digest date</span>
+          <input id="import-date-input" type="date" />
+        </label>
+
+        <label class="import-field">
+          <span class="job-label">Digest JSON</span>
+          <textarea
+            id="import-json-input"
+            rows="16"
+            spellcheck="false"
+            placeholder='{"date":"2026-04-01","summary":"Fresh digest","jobs":[{"title":"Senior Product Manager","company":"Example","link":"https://example.com/job"}]}'
+          ></textarea>
+        </label>
+
+        <p id="import-status" class="import-status" hidden></p>
+
+        <div class="job-actions">
+          <button id="close-import-dialog" class="secondary-button" type="button">Close</button>
+          <button class="primary-button" type="submit">Save digest</button>
+        </div>
+      </form>
+    </dialog>
+
+    <template id="job-card-template">
+      <article class="job-card">
+        <div class="job-card-top">
+          <div>
+            <div class="job-badges">
+              <span class="company-status-badge"></span>
+              <span class="new-badge" hidden>New today</span>
+              <span class="source-badge"></span>
+              <span class="band-badge"></span>
+            </div>
+            <h3 class="job-title"></h3>
+            <p class="job-company"></p>
+          </div>
+          <button class="save-button" type="button"></button>
+        </div>
+
+        <div class="job-grid">
+          <div>
+            <p class="job-label">Location</p>
+            <p class="job-value job-location"></p>
+          </div>
+          <div>
+            <p class="job-label">Base salary</p>
+            <p class="job-value job-salary"></p>
+          </div>
+          <div>
+            <p class="job-label">Equity</p>
+            <p class="job-value job-equity"></p>
+          </div>
+          <div>
+            <p class="job-label">Company status</p>
+            <p class="job-value job-company-status"></p>
+          </div>
+          <div>
+            <p class="job-label">Company type</p>
+            <p class="job-value job-company-size"></p>
+          </div>
+        </div>
+
+        <div class="job-section">
+          <p class="job-label">Benefits</p>
+          <ul class="benefit-list"></ul>
+        </div>
+
+        <div class="job-section recruiter-section">
+          <p class="job-label">Recruiter info</p>
+          <p class="job-value recruiter-value"></p>
+        </div>
+
+        <div class="job-section">
+          <p class="job-label">Why it fits</p>
+          <p class="job-value fit-note"></p>
+        </div>
+
+        <div class="job-actions">
+          <a class="primary-button apply-link" target="_blank" rel="noreferrer">Open listing</a>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

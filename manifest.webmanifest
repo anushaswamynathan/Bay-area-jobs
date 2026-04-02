@@ -1,0 +1,9 @@
+{
+  "name": "Bay PM Jobs",
+  "short_name": "BayJobs",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3efe6",
+  "theme_color": "#0b7285",
+  "icons": []
+}

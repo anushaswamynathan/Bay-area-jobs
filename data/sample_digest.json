@@ -1,0 +1,33 @@
+{
+  "date": "2026-04-01",
+  "summary": "Sample imported digest with public companies ranked ahead of private companies.",
+  "criteria": {
+    "location": "San Francisco Bay Area",
+    "salary": "$190,000-$220,000",
+    "industries": ["Fintech", "Marketplaces"],
+    "sources": ["Company career pages", "LinkedIn", "Reputable job boards"],
+    "ranking": "Public companies first, then private/startups"
+  },
+  "jobs": [
+    {
+      "id": "uber-financial-products",
+      "title": "Senior Product Manager, Financial Products",
+      "company": "Uber",
+      "companyStatus": "public",
+      "companySharesNote": "NYSE: UBER",
+      "location": "San Francisco, CA",
+      "salary": "$190,000-$211,000",
+      "salaryBandFit": "exact",
+      "equityStatus": "Explicitly listed",
+      "benefits": ["Equity award eligibility", "Bonus eligibility", "Comprehensive benefits package"],
+      "recruiterName": "",
+      "recruiterContact": "",
+      "source": "Company career page",
+      "sourceType": "company",
+      "link": "https://www.uber.com/global/en/careers/list/145353/",
+      "fitNote": "Large public company with fintech-adjacent scope and strong compensation fit.",
+      "applicationStatus": "open",
+      "shortlisted": true
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bay-pm-jobs
+    runtime: python
+    plan: starter
+    buildCommand: ""
+    startCommand: NIGHTLY_TODOS_HOST=0.0.0.0 NIGHTLY_TODOS_DATA_DIR=/var/data python3 server.py
+    disk:
+      name: bay-pm-jobs-data
+      mountPath: /var/data
+      sizeGB: 1
