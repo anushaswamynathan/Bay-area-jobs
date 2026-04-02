@@ -564,10 +564,17 @@
           "boardToken": "workato",
           "company": "Workato",
           "companyStatus": "private",
-          "companyStatus": "private",
           "companySizeHint": "Growth-stage private company",
           "companySharesNote": "Private company, no public shares",
           "industries": ["automation", "enterprise software"]
+        },
+        {
+          "boardToken": "oura",
+          "company": "Oura",
+          "companyStatus": "private",
+          "companySizeHint": "Late-stage private company",
+          "companySharesNote": "Private company, no public shares",
+          "industries": ["healthtech", "consumer hardware", "wellness"]
         }
       ]
     },
