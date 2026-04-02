@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
+from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse, urlunparse
@@ -127,6 +128,30 @@ SALARY_PATTERNS = [
     ),
 ]
 
+KNOWN_LOCATIONS = {
+    "san francisco": (37.7749, -122.4194),
+    "south san francisco": (37.6547, -122.4077),
+    "oakland": (37.8044, -122.2711),
+    "berkeley": (37.8715, -122.2730),
+    "san mateo": (37.5630, -122.3255),
+    "redwood city": (37.4852, -122.2364),
+    "palo alto": (37.4419, -122.1430),
+    "mountain view": (37.3861, -122.0839),
+    "sunnyvale": (37.3688, -122.0363),
+    "santa clara": (37.3541, -121.9552),
+    "san jose": (37.3382, -121.8863),
+    "menlo park": (37.4530, -122.1817),
+    "foster city": (37.5585, -122.2711),
+    "san bruno": (37.6305, -122.4111),
+    "burlingame": (37.5779, -122.3481),
+    "millbrae": (37.5985, -122.3872),
+    "belmont": (37.5202, -122.2758),
+    "cupertino": (37.3230, -122.0322),
+    "los altos": (37.3852, -122.1141),
+    "emeryville": (37.8313, -122.2852),
+    "alameda": (37.7799, -122.2822),
+}
+
 
 @dataclass
 class Criteria:
@@ -143,6 +168,7 @@ class Criteria:
     target_jobs_per_day: int
     fallback_salary_min: int
     fallback_salary_max: int
+    radius_miles: int
 
 
 class TextExtractor(HTMLParser):
@@ -362,6 +388,23 @@ def preview_sources(sources: list[dict]) -> list[dict]:
     return prioritized
 
 
+def lookup_coordinates(text: str) -> tuple[float, float] | None:
+    lowered = text.lower()
+    for name, coords in KNOWN_LOCATIONS.items():
+        if name in lowered:
+            return coords
+    return None
+
+
+def haversine_miles(origin: tuple[float, float], destination: tuple[float, float]) -> float:
+    lat1, lon1 = origin
+    lat2, lon2 = destination
+    d_lat = radians(lat2 - lat1)
+    d_lon = radians(lon2 - lon1)
+    a = sin(d_lat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(d_lon / 2) ** 2
+    return 3958.8 * 2 * asin(sqrt(a))
+
+
 def load_source_catalog() -> tuple[Criteria, list[dict]]:
     payload = json.loads(SOURCE_CATALOG_PATH.read_text())
     criteria = payload["criteria"]
@@ -369,7 +412,7 @@ def load_source_catalog() -> tuple[Criteria, list[dict]]:
     role_name = search_preferences.get("roleName", "Product Manager")
     city = search_preferences.get("city", "San Francisco")
     state_name = search_preferences.get("state", "CA")
-    location_keywords = [f"{city}".lower(), f"{city}, {state_name}".lower(), state_name.lower()]
+    location_keywords = [f"{city}".lower(), f"{city}, {state_name}".lower()]
     personalized_sources = personalize_sources(payload["sources"], role_name, city, state_name)
     return (
         Criteria(
@@ -386,6 +429,7 @@ def load_source_catalog() -> tuple[Criteria, list[dict]]:
             target_jobs_per_day=int(search_preferences.get("resultLimit", criteria.get("targetJobsPerDay", 50))),
             fallback_salary_min=int(min(search_preferences.get("compMin", criteria["salaryMin"]), criteria.get("fallbackSalaryMin", 170000))),
             fallback_salary_max=int(max(search_preferences.get("compMax", criteria["salaryMax"]), criteria.get("fallbackSalaryMax", 240000))),
+            radius_miles=50,
         ),
         personalized_sources,
     )
@@ -536,14 +580,25 @@ def build_fit_note(company_status: str, industries: Iterable[str], title: str, s
 
 def matches_location(location: str, criteria: Criteria) -> bool:
     lowered = location.lower()
-    return any(keyword in lowered for keyword in criteria.bay_area_keywords)
+    if any(keyword in lowered for keyword in criteria.bay_area_keywords):
+        return True
+    origin = lookup_coordinates(f"{criteria.city}, {criteria.state}")
+    destination = lookup_coordinates(location)
+    if not origin or not destination:
+        return False
+    return haversine_miles(origin, destination) <= criteria.radius_miles
 
 
 def infer_location_from_text(text: str, criteria: Criteria) -> str:
     lowered = text.lower()
+    origin = lookup_coordinates(f"{criteria.city}, {criteria.state}")
     for keyword in criteria.bay_area_keywords:
         if keyword in lowered:
             return keyword.title()
+    if origin:
+        for name, coords in KNOWN_LOCATIONS.items():
+            if name in lowered and haversine_miles(origin, coords) <= criteria.radius_miles:
+                return name.title()
     return ""
 
 

@@ -10,6 +10,7 @@ const state = {
   isRefreshing: false,
   refreshStatus: null,
   refreshPollTimer: null,
+  sourceHealth: null,
 };
 
 const elements = {
@@ -17,6 +18,7 @@ const elements = {
   todayLabel: document.querySelector("#today-label"),
   digestSummary: document.querySelector("#digest-summary"),
   refreshStatus: document.querySelector("#refresh-status"),
+  sourceHealthList: document.querySelector("#source-health-list"),
   heroTitle: document.querySelector("#hero-title"),
   heroCopy: document.querySelector("#hero-copy"),
   resultsTitle: document.querySelector("#results-title"),
@@ -66,6 +68,7 @@ boot();
 async function boot() {
   await refreshState();
   await refreshRefreshStatus();
+  await refreshSourceHealth();
   syncSelectedDate();
   render();
   wireEvents();
@@ -101,6 +104,11 @@ async function refreshState() {
 async function refreshRefreshStatus() {
   const response = await fetch("/api/refresh-status");
   state.refreshStatus = await response.json();
+}
+
+async function refreshSourceHealth() {
+  const response = await fetch("/api/source-health");
+  state.sourceHealth = await response.json();
 }
 
 function toggleUtilityPanel(panelName) {
@@ -141,6 +149,7 @@ async function handleSearchSave(event) {
       throw new Error("Refresh failed");
     }
     await refreshRefreshStatus();
+    await refreshSourceHealth();
     syncRefreshPolling();
     state.criteriaPanelOpen = false;
     render();
@@ -148,6 +157,7 @@ async function handleSearchSave(event) {
   } catch (error) {
     await refreshState();
     await refreshRefreshStatus();
+    await refreshSourceHealth();
     render();
     window.alert("The search criteria were saved, but the refresh did not complete. Please try again in a moment.");
   } finally {
@@ -224,6 +234,7 @@ function render() {
 
   renderDynamicText();
   renderRefreshStatus();
+  renderSourceHealth();
   renderSearchForm();
   renderFilterState();
   renderUtilityPanels();
@@ -241,7 +252,7 @@ function renderDynamicText() {
   if (state.isRefreshing || state.refreshStatus?.state === "running") {
     elements.heroCopy.textContent = `Updating ${prefs.roleName || "your search"} results in the background. You can keep browsing while the next digest loads.`;
   } else {
-    elements.heroCopy.textContent = `Tracking up to ${prefs.resultLimit || 50} daily roles with base comp between ${formatCurrency(prefs.compMin)} and ${formatCurrency(prefs.compMax)}.`;
+    elements.heroCopy.textContent = `Tracking up to ${prefs.resultLimit || 50} daily roles within 50 miles of ${locationLabel}, with base comp between ${formatCurrency(prefs.compMin)} and ${formatCurrency(prefs.compMax)}.`;
   }
   elements.resultsTitle.textContent = `${recommendedCount} recommended roles for ${locationLabel}`;
   document.title = `${prefs.roleName || "Product Manager"} Jobs | ${locationLabel}`;
@@ -268,6 +279,32 @@ function renderRefreshStatus() {
     return;
   }
   elements.refreshStatus.textContent = refresh.error || refresh.message || "Refresh failed.";
+}
+
+function renderSourceHealth() {
+  elements.sourceHealthList.innerHTML = "";
+  const health = state.sourceHealth;
+  if (!health?.ok) {
+    elements.sourceHealthList.innerHTML = '<p class="empty-state">Source health will appear after the next refresh.</p>';
+    return;
+  }
+  const entries = Object.entries(health.sources || {})
+    .sort((left, right) => right[1].fetched - left[1].fetched || left[0].localeCompare(right[0]))
+    .slice(0, 12);
+  for (const [name, info] of entries) {
+    const card = document.createElement("article");
+    card.className = "source-health-card";
+    const tone = info.error ? "error" : info.fetched > 0 ? "healthy" : "weak";
+    card.innerHTML = `
+      <div class="source-health-top">
+        <h3>${name}</h3>
+        <span class="source-health-badge is-${tone}">${info.error ? "Error" : info.fetched > 0 ? "Active" : "No matches"}</span>
+      </div>
+      <p class="source-health-meta">${info.fetched || 0} fetched${info.previewFetched ? ` • ${info.previewFetched} in preview` : ""}</p>
+      <p class="source-health-meta">${info.error || "Latest refresh completed without a source error."}</p>
+    `;
+    elements.sourceHealthList.appendChild(card);
+  }
 }
 
 function renderSearchForm() {
@@ -532,10 +569,12 @@ function syncRefreshPolling() {
       await refreshState();
       state.selectedDateKey = getLatestDigestDate();
       state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
+      await refreshSourceHealth();
       render();
       return;
     }
     await refreshState();
+    await refreshSourceHealth();
     state.selectedDateKey = getLatestDigestDate();
     state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
     state.isRefreshing = false;

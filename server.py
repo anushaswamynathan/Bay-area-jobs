@@ -69,6 +69,7 @@ def search_preferences_to_criteria(preferences: dict, sources: list[str] | None 
     location = ", ".join(part for part in [preferences.get("city", ""), preferences.get("state", "")] if part)
     return {
         "location": location or "San Francisco, CA",
+        "radiusMiles": 50,
         "salary": f"${preferences['compMin']:,.0f}-${preferences['compMax']:,.0f}",
         "industries": ["Fintech", "Marketplaces"],
         "sources": sources or ["Company career pages", "LinkedIn", "Reputable job boards"],
