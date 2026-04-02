@@ -181,6 +181,28 @@ def normalize_city_slug(city: str) -> str:
     return "-".join(part for part in re.split(r"[^a-z0-9]+", city.lower()) if part)
 
 
+def build_role_search_variants(role_name: str) -> list[str]:
+    cleaned = " ".join(role_name.lower().split())
+    if not cleaned:
+        return []
+
+    variants = [cleaned]
+    seniority_terms = ["staff", "senior staff", "principal", "lead", "senior"]
+    stripped = re.sub(r"\b(staff|senior staff|principal|lead|senior|group)\b", "", cleaned)
+    base_role = " ".join(stripped.split()) or cleaned
+
+    if cleaned != base_role:
+        variants.append(base_role)
+    for prefix in seniority_terms:
+        variants.append(f"{prefix} {base_role}".strip())
+
+    seen = []
+    for variant in variants:
+        if variant not in seen:
+            seen.append(variant)
+    return seen
+
+
 def personalize_listing_url(source_name: str, url: str, role_name: str, city: str, state_name: str) -> str:
     parsed = urlparse(url)
     query = parse_qs(parsed.query, keep_blank_values=True)
@@ -247,14 +269,36 @@ def personalize_listing_url(source_name: str, url: str, role_name: str, city: st
 
 def personalize_sources(sources: list[dict], role_name: str, city: str, state_name: str) -> list[dict]:
     personalized = []
+    role_variants = build_role_search_variants(role_name)
     for source in sources:
         updated = dict(source)
         listing_urls = source.get("listingUrls")
         if listing_urls:
-            updated["listingUrls"] = [
-                personalize_listing_url(source["name"], url, role_name, city, state_name)
-                for url in listing_urls
-            ]
+            if source.get("sourceType") in {"linkedin", "indeed"}:
+                paginated_urls = []
+                starts = [0, 25, 50]
+                for variant in role_variants[:5] or [role_name]:
+                    for url in listing_urls[:1]:
+                        personalized_url = personalize_listing_url(
+                            source["name"], url, variant, city, state_name
+                        )
+                        if source.get("sourceType") == "linkedin":
+                            for start in starts:
+                                separator = "&" if "?" in personalized_url else "?"
+                                paginated_urls.append(f"{personalized_url}{separator}start={start}")
+                        else:
+                            paginated_urls.append(personalized_url)
+                updated["listingUrls"] = paginated_urls
+            elif source.get("sourceType") == "glassdoor":
+                updated["listingUrls"] = [
+                    personalize_listing_url(source["name"], listing_urls[0], variant, city, state_name)
+                    for variant in (role_variants[:4] or [role_name])
+                ]
+            else:
+                updated["listingUrls"] = [
+                    personalize_listing_url(source["name"], url, role_name, city, state_name)
+                    for url in listing_urls
+                ]
         personalized.append(updated)
     return personalized
 
