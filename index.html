@@ -104,13 +104,22 @@
             <p class="panel-label">Daily digest</p>
             <h2 id="results-title"></h2>
           </div>
-          <div class="filters" role="group" aria-label="Digest filters">
-            <button class="filter-chip is-active" data-filter="all" type="button">All</button>
-            <button class="filter-chip" data-filter="recommended" type="button">Recommended</button>
-            <button class="filter-chip" data-filter="applied" type="button">Applied</button>
-            <button class="filter-chip" data-filter="not-interested" type="button">Not interested</button>
-            <button class="filter-chip" data-filter="public" type="button">Public only</button>
-            <button class="filter-chip" data-filter="private" type="button">Private only</button>
+          <div class="jobs-controls">
+            <div class="filters" role="group" aria-label="Digest filters">
+              <button class="filter-chip is-active" data-filter="all" type="button">All</button>
+              <button class="filter-chip" data-filter="recommended" type="button">Recommended</button>
+              <button class="filter-chip" data-filter="applied" type="button">Applied</button>
+              <button class="filter-chip" data-filter="not-interested" type="button">Not interested</button>
+              <button class="filter-chip" data-filter="public" type="button">Public only</button>
+              <button class="filter-chip" data-filter="private" type="button">Private only</button>
+            </div>
+            <div class="company-filter-bar">
+              <label class="company-filter-field">
+                <span class="job-label">Company filter</span>
+                <input id="company-filter-input" type="text" placeholder="Type a company name" />
+              </label>
+              <div id="company-filter-chips" class="company-filter-chips"></div>
+            </div>
           </div>
         </div>
 

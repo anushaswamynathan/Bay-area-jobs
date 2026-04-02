@@ -13,6 +13,7 @@ const state = {
   sourceHealth: null,
   currentPage: 1,
   recommendedPageSize: 24,
+  companyFilter: "",
 };
 
 const elements = {
@@ -25,6 +26,8 @@ const elements = {
   previousPage: document.querySelector("#previous-page"),
   nextPage: document.querySelector("#next-page"),
   paginationLabel: document.querySelector("#pagination-label"),
+  companyFilterInput: document.querySelector("#company-filter-input"),
+  companyFilterChips: document.querySelector("#company-filter-chips"),
   heroTitle: document.querySelector("#hero-title"),
   heroCopy: document.querySelector("#hero-copy"),
   resultsTitle: document.querySelector("#results-title"),
@@ -97,6 +100,11 @@ function wireEvents() {
       state.currentPage = 1;
       render();
     });
+  });
+  elements.companyFilterInput.addEventListener("input", () => {
+    state.companyFilter = elements.companyFilterInput.value.trim().toLowerCase();
+    state.currentPage = 1;
+    render();
   });
   elements.previousPage.addEventListener("click", () => {
     state.currentPage = Math.max(1, state.currentPage - 1);
@@ -234,9 +242,9 @@ async function handleImportSubmit(event) {
 function render() {
   const digest = getSelectedDigest();
   const allJobs = sortJobs(digest?.jobs || []);
-  const recommendedJobs = applyViewFilter(allJobs.filter((job) => !job.applied && !job.notInterested));
-  const appliedJobs = applyViewFilter(allJobs.filter((job) => job.applied));
-  const notInterestedJobs = applyViewFilter(allJobs.filter((job) => job.notInterested));
+  const recommendedJobs = applyCompanyFilter(applyViewFilter(allJobs.filter((job) => !job.applied && !job.notInterested)));
+  const appliedJobs = applyCompanyFilter(applyViewFilter(allJobs.filter((job) => job.applied)));
+  const notInterestedJobs = applyCompanyFilter(applyViewFilter(allJobs.filter((job) => job.notInterested)));
   const visibleGroupsCount = recommendedJobs.length + appliedJobs.length + notInterestedJobs.length;
 
   elements.activeDateCaption.textContent = getRelativeDateLabel(state.selectedDateKey);
@@ -250,6 +258,7 @@ function render() {
   renderDynamicText();
   renderRefreshStatus();
   renderSourceHealth();
+  renderCompanyFilter(allJobs);
   renderSearchForm();
   renderFilterState();
   renderUtilityPanels();
@@ -322,6 +331,27 @@ function renderSourceHealth() {
   }
 }
 
+function renderCompanyFilter(allJobs) {
+  elements.companyFilterInput.value = state.companyFilter;
+  elements.companyFilterChips.innerHTML = "";
+  const companies = [...new Set(allJobs.map((job) => job.company).filter(Boolean))].sort().slice(0, 10);
+  for (const company of companies) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "filter-chip";
+    chip.textContent = company;
+    chip.classList.toggle("is-active", state.companyFilter === company.toLowerCase());
+    chip.addEventListener("click", () => {
+      const nextValue = state.companyFilter === company.toLowerCase() ? "" : company.toLowerCase();
+      state.companyFilter = nextValue;
+      elements.companyFilterInput.value = nextValue;
+      state.currentPage = 1;
+      render();
+    });
+    elements.companyFilterChips.appendChild(chip);
+  }
+}
+
 function renderSearchForm() {
   const prefs = state.searchPreferences;
   elements.roleNameInput.value = prefs.roleName || "";
@@ -386,6 +416,13 @@ function renderGroups(recommendedJobs, appliedJobs, notInterestedJobs) {
     elements.appliedSection.hidden = true;
     elements.notInterestedSection.hidden = true;
   }
+}
+
+function applyCompanyFilter(jobs) {
+  if (!state.companyFilter) {
+    return jobs;
+  }
+  return jobs.filter((job) => (job.company || "").toLowerCase().includes(state.companyFilter));
 }
 
 function createJobCard(job) {

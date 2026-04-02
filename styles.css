@@ -145,6 +145,27 @@ h2 {
   padding-top: 6px;
 }
 
+.jobs-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.company-filter-bar {
+  display: grid;
+  gap: 10px;
+}
+
+.company-filter-field {
+  display: grid;
+  gap: 8px;
+}
+
+.company-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .panel-status,
 .panel-head,
 .panel-actions,
