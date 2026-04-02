@@ -764,7 +764,7 @@ def get_source_health() -> dict:
         for source_name, source_info in payload.get(scope, {}).items():
             entry = summary.setdefault(
                 source_name,
-                {"status": "unknown", "fetched": 0, "error": "", "previewFetched": 0},
+                {"status": "unknown", "fetched": 0, "matched": 0, "error": "", "previewFetched": 0},
             )
             if scope == "previewFetch":
                 entry["previewFetched"] = source_info.get("fetched", 0)
@@ -772,6 +772,12 @@ def get_source_health() -> dict:
                 entry["status"] = source_info.get("status", "unknown")
                 entry["fetched"] = source_info.get("fetched", 0)
                 entry["error"] = source_info.get("error", "")
+    for source_name, source_info in payload.get("analysis", {}).get("sources", {}).items():
+        entry = summary.setdefault(
+            source_name,
+            {"status": "unknown", "fetched": 0, "matched": 0, "error": "", "previewFetched": 0},
+        )
+        entry["matched"] = int(source_info.get("strict_kept", 0)) + int(source_info.get("fallback_kept", 0))
     return {
         "ok": True,
         "updatedAt": payload.get("generatedAt") or get_refresh_status().get("completedAt"),

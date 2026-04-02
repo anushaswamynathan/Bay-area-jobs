@@ -264,6 +264,20 @@ h2 {
   color: #a63d40;
 }
 
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.pagination-label {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .panel-status {
   padding-top: 18px;
   padding-bottom: 18px;

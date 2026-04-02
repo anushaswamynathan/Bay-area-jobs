@@ -602,9 +602,33 @@ def infer_location_from_text(text: str, criteria: Criteria) -> str:
     return ""
 
 
+def normalize_phrase(value: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", value.lower()).split())
+
+
 def matches_title(title: str, criteria: Criteria) -> bool:
-    lowered = title.lower()
-    return any(keyword in lowered for keyword in criteria.title_keywords)
+    normalized_title = normalize_phrase(title)
+    if not normalized_title:
+        return False
+
+    role_variants = build_role_search_variants(criteria.role_name)
+    title_keywords = [*criteria.title_keywords, *role_variants]
+    seniority_words = {"staff", "senior", "principal", "lead", "group"}
+    title_words = set(normalized_title.split())
+
+    for keyword in title_keywords:
+        normalized_keyword = normalize_phrase(keyword)
+        if not normalized_keyword:
+            continue
+        if normalized_keyword in normalized_title:
+            return True
+        keyword_words = normalized_keyword.split()
+        base_words = [word for word in keyword_words if word not in seniority_words]
+        seniority_matches = [word for word in keyword_words if word in seniority_words]
+        if base_words and all(word in title_words for word in base_words):
+            if not seniority_matches or any(word in title_words for word in seniority_matches):
+                return True
+    return False
 
 
 def collect_job_text(title: str, description: str, salary: str, benefits: list[str], location: str) -> str:

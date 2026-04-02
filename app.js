@@ -11,6 +11,8 @@ const state = {
   refreshStatus: null,
   refreshPollTimer: null,
   sourceHealth: null,
+  currentPage: 1,
+  recommendedPageSize: 24,
 };
 
 const elements = {
@@ -19,6 +21,10 @@ const elements = {
   digestSummary: document.querySelector("#digest-summary"),
   refreshStatus: document.querySelector("#refresh-status"),
   sourceHealthList: document.querySelector("#source-health-list"),
+  recommendedPagination: document.querySelector("#recommended-pagination"),
+  previousPage: document.querySelector("#previous-page"),
+  nextPage: document.querySelector("#next-page"),
+  paginationLabel: document.querySelector("#pagination-label"),
   heroTitle: document.querySelector("#hero-title"),
   heroCopy: document.querySelector("#hero-copy"),
   resultsTitle: document.querySelector("#results-title"),
@@ -88,8 +94,17 @@ function wireEvents() {
   elements.filterChips.forEach((chip) => {
     chip.addEventListener("click", () => {
       state.activeFilter = chip.dataset.filter;
+      state.currentPage = 1;
       render();
     });
+  });
+  elements.previousPage.addEventListener("click", () => {
+    state.currentPage = Math.max(1, state.currentPage - 1);
+    render();
+  });
+  elements.nextPage.addEventListener("click", () => {
+    state.currentPage += 1;
+    render();
   });
 }
 
@@ -300,7 +315,7 @@ function renderSourceHealth() {
         <h3>${name}</h3>
         <span class="source-health-badge is-${tone}">${info.error ? "Error" : info.fetched > 0 ? "Active" : "No matches"}</span>
       </div>
-      <p class="source-health-meta">${info.fetched || 0} fetched${info.previewFetched ? ` • ${info.previewFetched} in preview` : ""}</p>
+      <p class="source-health-meta">${info.matched || 0} matched of ${info.fetched || 0} fetched${info.previewFetched ? ` • ${info.previewFetched} in preview` : ""}</p>
       <p class="source-health-meta">${info.error || "Latest refresh completed without a source error."}</p>
     `;
     elements.sourceHealthList.appendChild(card);
@@ -341,15 +356,23 @@ function renderGroups(recommendedJobs, appliedJobs, notInterestedJobs) {
 
   const exactCount = recommendedJobs.filter((job) => job.salaryBandFit === "exact").length;
   const nearCount = recommendedJobs.length - exactCount;
+  const totalPages = Math.max(1, Math.ceil(recommendedJobs.length / state.recommendedPageSize));
+  state.currentPage = Math.min(state.currentPage, totalPages);
+  const startIndex = (state.currentPage - 1) * state.recommendedPageSize;
+  const pagedRecommendedJobs = recommendedJobs.slice(startIndex, startIndex + state.recommendedPageSize);
 
   elements.recommendedGroupTitle.textContent = `Fresh roles to review (${recommendedJobs.length})`;
   elements.recommendedGroupCopy.textContent = `${exactCount} exact fit${exactCount === 1 ? "" : "s"} and ${nearCount} near match${nearCount === 1 ? "" : "es"}. Applied and not interested jobs are excluded automatically.`;
   elements.appliedGroupTitle.textContent = `Already submitted (${appliedJobs.length})`;
   elements.notInterestedGroupTitle.textContent = `Hidden from your recommendations (${notInterestedJobs.length})`;
 
-  recommendedJobs.forEach((job) => elements.recommendedJobList.appendChild(createJobCard(job)));
+  pagedRecommendedJobs.forEach((job) => elements.recommendedJobList.appendChild(createJobCard(job)));
   appliedJobs.forEach((job) => elements.appliedJobList.appendChild(createJobCard(job)));
   notInterestedJobs.forEach((job) => elements.notInterestedJobList.appendChild(createJobCard(job)));
+  elements.recommendedPagination.hidden = recommendedJobs.length <= state.recommendedPageSize || state.activeFilter === "applied" || state.activeFilter === "not-interested";
+  elements.paginationLabel.textContent = `Page ${state.currentPage} of ${totalPages}`;
+  elements.previousPage.disabled = state.currentPage <= 1;
+  elements.nextPage.disabled = state.currentPage >= totalPages;
 
   if (state.activeFilter === "applied") {
     elements.recommendedSection.hidden = true;
