@@ -16,6 +16,8 @@ from urllib.parse import unquote
 BASE_DIR = Path(__file__).resolve().parent
 HOST = os.getenv("BAY_PM_JOBS_HOST", os.getenv("NIGHTLY_TODOS_HOST", "127.0.0.1"))
 PORT = int(os.getenv("PORT", os.getenv("BAY_PM_JOBS_PORT", "4174")))
+AUTO_REFRESH_MINUTES = max(15, int(os.getenv("BAY_PM_JOBS_AUTO_REFRESH_MINUTES", "60")))
+REFRESH_REPORT_PATH = BASE_DIR / "data" / "refresh_report.json"
 
 
 def utc_now_iso() -> str:
@@ -619,6 +621,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/refresh-status":
             self.send_json(get_refresh_status())
             return
+        if self.path == "/api/source-health":
+            self.send_json(get_source_health())
+            return
         super().do_GET()
 
     def do_PATCH(self) -> None:
@@ -661,24 +666,11 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_json({"ok": True, "searchPreferences": state["searchPreferences"]})
 
     def handle_refresh_digest(self) -> None:
-        with REFRESH_LOCK:
-            if REFRESH_STATUS["state"] == "running":
-                self.send_json({"ok": True, "queued": False, "status": get_refresh_status()})
-                return
-            REFRESH_STATUS.update(
-                {
-                    "state": "running",
-                    "message": "Refreshing live job sources...",
-                    "startedAt": utc_now_iso(),
-                    "completedAt": None,
-                    "jobCount": 0,
-                    "date": None,
-                    "error": "",
-                }
-            )
-
-        threading.Thread(target=run_refresh_job, daemon=True).start()
-        self.send_json({"ok": True, "queued": True, "status": get_refresh_status()}, status=HTTPStatus.ACCEPTED)
+        queued = queue_refresh_job("Refreshing live job sources...")
+        self.send_json(
+            {"ok": True, "queued": queued, "status": get_refresh_status()},
+            status=HTTPStatus.ACCEPTED if queued else HTTPStatus.OK,
+        )
 
     def handle_update_job(self) -> None:
         date_value, job_id = self.parse_job_path(require_job_id=True)
@@ -747,6 +739,7 @@ class AppHandler(SimpleHTTPRequestHandler):
 
 
 def run_server() -> None:
+    ensure_auto_refresh_started()
     server = ThreadingHTTPServer((HOST, PORT), AppHandler)
     print(f"Serving Bay PM Jobs on http://{HOST}:{PORT}")
     server.serve_forever()
@@ -755,6 +748,79 @@ def run_server() -> None:
 def get_refresh_status() -> dict:
     with REFRESH_LOCK:
         return dict(REFRESH_STATUS)
+
+
+def get_source_health() -> dict:
+    if not REFRESH_REPORT_PATH.exists():
+        return {"ok": False, "sources": {}, "updatedAt": None}
+    try:
+        payload = json.loads(REFRESH_REPORT_PATH.read_text())
+    except json.JSONDecodeError:
+        return {"ok": False, "sources": {}, "updatedAt": None}
+
+    summary = {}
+    for scope in ("previewFetch", "fetch"):
+        for source_name, source_info in payload.get(scope, {}).items():
+            entry = summary.setdefault(
+                source_name,
+                {"status": "unknown", "fetched": 0, "error": "", "previewFetched": 0},
+            )
+            if scope == "previewFetch":
+                entry["previewFetched"] = source_info.get("fetched", 0)
+            else:
+                entry["status"] = source_info.get("status", "unknown")
+                entry["fetched"] = source_info.get("fetched", 0)
+                entry["error"] = source_info.get("error", "")
+    return {
+        "ok": True,
+        "updatedAt": payload.get("generatedAt") or get_refresh_status().get("completedAt"),
+        "sources": summary,
+        "criteria": payload.get("criteria", {}),
+    }
+
+
+def queue_refresh_job(message: str) -> bool:
+    with REFRESH_LOCK:
+        if REFRESH_STATUS["state"] == "running":
+            return False
+        REFRESH_STATUS.update(
+            {
+                "state": "running",
+                "message": message,
+                "startedAt": utc_now_iso(),
+                "completedAt": None,
+                "jobCount": 0,
+                "date": None,
+                "error": "",
+            }
+        )
+    threading.Thread(target=run_refresh_job, daemon=True).start()
+    return True
+
+
+def is_refresh_stale() -> bool:
+    status = get_refresh_status()
+    completed_at = status.get("completedAt")
+    if not completed_at:
+        return True
+    try:
+        completed = datetime.fromisoformat(completed_at)
+    except ValueError:
+        return True
+    return (datetime.now().astimezone() - completed).total_seconds() >= AUTO_REFRESH_MINUTES * 60
+
+
+def auto_refresh_loop() -> None:
+    if is_refresh_stale():
+        queue_refresh_job("Refreshing live job sources on startup...")
+    while True:
+        threading.Event().wait(AUTO_REFRESH_MINUTES * 60)
+        if is_refresh_stale():
+            queue_refresh_job("Scheduled refresh is running...")
+
+
+def ensure_auto_refresh_started() -> None:
+    threading.Thread(target=auto_refresh_loop, daemon=True).start()
 
 
 def run_refresh_job() -> None:
@@ -798,6 +864,7 @@ def run_refresh_job() -> None:
         refresh_jobs.GENERATED_REPORT_PATH.write_text(
             json.dumps(
                 {
+                    "generatedAt": utc_now_iso(),
                     "criteria": {
                         "roleName": criteria.role_name,
                         "city": criteria.city,

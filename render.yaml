@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip3 install -r requirements.txt
-    startCommand: BAY_PM_JOBS_HOST=0.0.0.0 BAY_PM_JOBS_DATA_DIR=/var/data python3 server.py
+    startCommand: BAY_PM_JOBS_HOST=0.0.0.0 BAY_PM_JOBS_DATA_DIR=/var/data BAY_PM_JOBS_AUTO_REFRESH_MINUTES=60 python3 server.py
     disk:
       name: bay-pm-jobs-data
       mountPath: /var/data
