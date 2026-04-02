@@ -74,6 +74,54 @@
       "maxDetailPages": 20
     },
     {
+      "name": "Built In search",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "job-board",
+      "listingUrls": [
+        "https://builtin.com/jobs/product/search/product-manager"
+      ],
+      "allowedHosts": ["builtin.com", "www.builtin.com"],
+      "detailLinkPatterns": ["/job/"],
+      "maxDetailPages": 20
+    },
+    {
+      "name": "Wellfound search",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "job-board",
+      "listingUrls": [
+        "https://wellfound.com/role/l/product-manager/san-francisco"
+      ],
+      "allowedHosts": ["wellfound.com", "www.wellfound.com"],
+      "detailLinkPatterns": ["/jobs/"],
+      "maxDetailPages": 20
+    },
+    {
+      "name": "Dice search",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "job-board",
+      "listingUrls": [
+        "https://www.dice.com/jobs?q=product%20manager&location=San%20Francisco%2C%20CA"
+      ],
+      "allowedHosts": ["dice.com", "www.dice.com"],
+      "detailLinkPatterns": ["/job-detail/"],
+      "maxDetailPages": 16
+    },
+    {
+      "name": "ZipRecruiter search",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "job-board",
+      "listingUrls": [
+        "https://www.ziprecruiter.com/jobs-search?search=product%20manager&location=San%20Francisco%2C%20CA"
+      ],
+      "allowedHosts": ["ziprecruiter.com", "www.ziprecruiter.com"],
+      "detailLinkPatterns": ["/jobs/"],
+      "maxDetailPages": 16
+    },
+    {
       "name": "Uber careers",
       "type": "html_search",
       "enabled": true,

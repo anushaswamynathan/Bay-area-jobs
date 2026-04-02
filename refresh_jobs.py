@@ -223,6 +223,13 @@ def personalize_listing_url(source_name: str, url: str, role_name: str, city: st
             "https://www.glassdoor.com/Job/jobs.htm?"
             + urlencode({"sc.keyword": role_query, "locT": "C", "locId": "1147401"})
         )
+    if "builtin.com" in parsed.netloc.lower() and "/search/" in parsed.path:
+        prefix, _, _ = parsed.path.rpartition("/")
+        return urlunparse(parsed._replace(path=f"{prefix}/{normalize_role_slug(role_query)}"))
+    if "wellfound.com" in parsed.netloc.lower() and parsed.path.startswith("/role/l/"):
+        return urlunparse(
+            parsed._replace(path=f"/role/l/{normalize_role_slug(role_query)}/{normalize_city_slug(city)}")
+        )
 
     rebuilt = urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
     if updated:
