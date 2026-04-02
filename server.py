@@ -514,36 +514,32 @@ def merge_existing_flags(existing_jobs: list[dict], incoming_jobs: list[dict]) -
     return merged_jobs
 
 
-def maybe_upgrade_from_bundled_state(state: dict) -> dict:
-    bundled_path = BASE_DIR / "data" / "state.json"
-    if bundled_path.resolve() == STATE_PATH.resolve():
+def maybe_upgrade_from_bundled_digest(state: dict) -> dict:
+    bundled_digest = load_json_file(BASE_DIR / "data" / "generated_digest.json")
+    if not bundled_digest:
         return state
 
-    bundled_state = load_json_file(bundled_path)
-    if not bundled_state:
-        return state
-
-    bundled_state = ensure_state_shape(bundled_state)
-    bundled_dates = sorted(bundled_state.get("digestsByDate", {}))
-    if not bundled_dates:
-        return state
-
-    latest_bundled_date = bundled_dates[-1]
-    bundled_digest = bundled_state["digestsByDate"].get(latest_bundled_date, {})
+    bundled_date = str(bundled_digest.get("date", "")).strip()
     bundled_jobs = bundled_digest.get("jobs", [])
-    current_digest = state.get("digestsByDate", {}).get(latest_bundled_date, {})
+    if not bundled_date or not bundled_jobs:
+        return state
+
+    current_digest = state.get("digestsByDate", {}).get(bundled_date, {})
     current_jobs = current_digest.get("jobs", [])
     current_dates = sorted(state.get("digestsByDate", {}))
     latest_current_date = current_dates[-1] if current_dates else ""
 
-    if latest_bundled_date < latest_current_date:
+    if bundled_date < latest_current_date:
         return state
-    if latest_bundled_date == latest_current_date and len(bundled_jobs) <= len(current_jobs):
+    if bundled_date == latest_current_date and len(bundled_jobs) <= len(current_jobs):
         return state
 
-    state["searchPreferences"] = bundled_state.get("searchPreferences", state.get("searchPreferences"))
-    state["criteria"] = bundled_state.get("criteria", state.get("criteria"))
-    state.setdefault("digestsByDate", {})[latest_bundled_date] = {
+    state["searchPreferences"] = normalize_search_preferences(
+        bundled_digest.get("searchPreferences"),
+        state.get("searchPreferences"),
+    )
+    state["criteria"] = bundled_digest.get("criteria", state.get("criteria"))
+    state.setdefault("digestsByDate", {})[bundled_date] = {
         "generatedAt": bundled_digest.get("generatedAt", utc_now_iso()),
         "summary": bundled_digest.get("summary", current_digest.get("summary", "")),
         "jobs": merge_existing_flags(current_jobs, bundled_jobs),
@@ -558,17 +554,19 @@ def load_state() -> dict:
     if not STATE_PATH.exists():
         state = create_seed_state()
         save_state(state)
-        return state
+    else:
+        try:
+            state = json.loads(STATE_PATH.read_text())
+        except json.JSONDecodeError:
+            state = create_seed_state()
+            save_state(state)
 
-    try:
-        state = json.loads(STATE_PATH.read_text())
-    except json.JSONDecodeError:
+    if not isinstance(state, dict):
         state = create_seed_state()
         save_state(state)
-        return state
 
     state = ensure_state_shape(state)
-    state = maybe_upgrade_from_bundled_state(state)
+    state = maybe_upgrade_from_bundled_digest(state)
     if today_key() not in state.get("digestsByDate", {}):
         state["digestsByDate"][today_key()] = {
             "generatedAt": utc_now_iso(),
@@ -605,6 +603,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if self.path == "/api/import-digest":
             self.handle_import_digest()
             return
+        if self.path == "/api/refresh-digest":
+            self.handle_refresh_digest()
+            return
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def handle_import_digest(self) -> None:
@@ -627,6 +628,53 @@ class AppHandler(SimpleHTTPRequestHandler):
         state["lastUpdatedAt"] = utc_now_iso()
         save_state(state)
         self.send_json({"ok": True, "searchPreferences": state["searchPreferences"]})
+
+    def handle_refresh_digest(self) -> None:
+        try:
+            import refresh_jobs
+        except Exception as error:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Unable to load refresh pipeline: {error}")
+            return
+
+        try:
+            refresh_jobs.require_refresh_dependencies()
+            criteria, sources = refresh_jobs.load_source_catalog()
+            jobs_by_source, source_report = refresh_jobs.fetch_all_jobs(criteria, sources)
+            digest, diagnostics = refresh_jobs.build_digest(jobs_by_source, criteria, sources)
+            refresh_jobs.GENERATED_DIGEST_PATH.write_text(json.dumps(digest, indent=2))
+            refresh_jobs.GENERATED_REPORT_PATH.write_text(
+                json.dumps(
+                    {
+                        "criteria": {
+                            "roleName": criteria.role_name,
+                            "city": criteria.city,
+                            "state": criteria.state,
+                            "salaryMin": criteria.salary_min,
+                            "salaryMax": criteria.salary_max,
+                            "resultLimit": criteria.max_jobs_per_day,
+                        },
+                        "fetch": source_report,
+                        "analysis": diagnostics,
+                    },
+                    indent=2,
+                )
+            )
+            import_digest_payload(digest)
+        except RuntimeError as error:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
+            return
+        except Exception as error:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Refresh failed: {error}")
+            return
+
+        self.send_json(
+            {
+                "ok": True,
+                "date": digest["date"],
+                "jobCount": len(digest["jobs"]),
+                "summary": digest["summary"],
+            }
+        )
 
     def handle_update_job(self) -> None:
         date_value, job_id = self.parse_job_path(require_job_id=True)

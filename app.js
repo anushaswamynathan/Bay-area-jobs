@@ -7,6 +7,7 @@ const state = {
   activeFilter: "all",
   criteriaPanelOpen: false,
   calendarPanelOpen: false,
+  isRefreshing: false,
 };
 
 const elements = {
@@ -112,15 +113,39 @@ async function handleSearchSave(event) {
     compMax: Number(elements.compMaxInput.value),
     resultLimit: Number(elements.resultLimitInput.value),
   };
+  state.isRefreshing = true;
+  elements.toggleCriteria.disabled = true;
+  elements.toggleCalendar.disabled = true;
+  elements.digestSummary.textContent = `Refreshing results for ${payload.roleName || "your search"}...`;
   await fetch("/api/search-preferences", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  await refreshState();
-  render();
-  state.criteriaPanelOpen = false;
-  renderUtilityPanels();
+  try {
+    const refreshResponse = await fetch("/api/refresh-digest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!refreshResponse.ok) {
+      throw new Error("Refresh failed");
+    }
+    await refreshState();
+    state.selectedDateKey = getLatestDigestDate();
+    state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
+    state.criteriaPanelOpen = false;
+    render();
+    renderUtilityPanels();
+  } catch (error) {
+    await refreshState();
+    render();
+    window.alert("The search criteria were saved, but the refresh did not complete. Please try again in a moment.");
+  } finally {
+    state.isRefreshing = false;
+    elements.toggleCriteria.disabled = false;
+    elements.toggleCalendar.disabled = false;
+  }
 }
 
 function openImportDialog() {
@@ -445,10 +470,14 @@ function jumpToToday() {
 
 function syncSelectedDate() {
   if (!state.digestsByDate[state.selectedDateKey]) {
-    const availableDates = Object.keys(state.digestsByDate).sort();
-    state.selectedDateKey = availableDates.at(-1) || getDateKey(new Date());
+    state.selectedDateKey = getLatestDigestDate();
   }
   state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
+}
+
+function getLatestDigestDate() {
+  const availableDates = Object.keys(state.digestsByDate).sort();
+  return availableDates.at(-1) || getDateKey(new Date());
 }
 
 function getDateKey(date) {
