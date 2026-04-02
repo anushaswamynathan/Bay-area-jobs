@@ -1,4 +1,5 @@
 const state = {
+  searchPreferences: {},
   criteria: {},
   digestsByDate: {},
   selectedDateKey: getDateKey(new Date()),
@@ -12,23 +13,37 @@ const elements = {
   activeDateCaption: document.querySelector("#active-date-caption"),
   todayLabel: document.querySelector("#today-label"),
   digestSummary: document.querySelector("#digest-summary"),
-  criteriaList: document.querySelector("#criteria-list"),
+  heroTitle: document.querySelector("#hero-title"),
+  heroCopy: document.querySelector("#hero-copy"),
+  resultsTitle: document.querySelector("#results-title"),
   criteriaPanel: document.querySelector("#criteria-panel"),
   calendarPanel: document.querySelector("#calendar-panel"),
-  jobCount: document.querySelector("#job-count"),
-  publicCount: document.querySelector("#public-count"),
-  shortlistedCount: document.querySelector("#shortlisted-count"),
+  recommendedCount: document.querySelector("#recommended-count"),
+  appliedCount: document.querySelector("#applied-count"),
+  notInterestedCount: document.querySelector("#not-interested-count"),
   openImportDialog: document.querySelector("#open-import-dialog"),
   toggleCriteria: document.querySelector("#toggle-criteria"),
   toggleCalendar: document.querySelector("#toggle-calendar"),
+  searchForm: document.querySelector("#search-form"),
+  roleNameInput: document.querySelector("#role-name-input"),
+  cityInput: document.querySelector("#city-input"),
+  stateInput: document.querySelector("#state-input"),
+  compMinInput: document.querySelector("#comp-min-input"),
+  compMaxInput: document.querySelector("#comp-max-input"),
+  resultLimitInput: document.querySelector("#result-limit-input"),
   importDialog: document.querySelector("#import-dialog"),
   importForm: document.querySelector("#import-form"),
   closeImportDialog: document.querySelector("#close-import-dialog"),
   importDateInput: document.querySelector("#import-date-input"),
   importJsonInput: document.querySelector("#import-json-input"),
   importStatus: document.querySelector("#import-status"),
+  recommendedSection: document.querySelector("#recommended-section"),
+  appliedSection: document.querySelector("#applied-section"),
+  notInterestedSection: document.querySelector("#not-interested-section"),
   exactJobList: document.querySelector("#exact-job-list"),
   overlapJobList: document.querySelector("#overlap-job-list"),
+  appliedJobList: document.querySelector("#applied-job-list"),
+  notInterestedJobList: document.querySelector("#not-interested-job-list"),
   emptyState: document.querySelector("#empty-state"),
   jobTemplate: document.querySelector("#job-card-template"),
   calendarMonthLabel: document.querySelector("#calendar-month-label"),
@@ -57,12 +72,21 @@ function wireEvents() {
   elements.toggleCalendar.addEventListener("click", () => toggleUtilityPanel("calendar"));
   elements.closeImportDialog.addEventListener("click", () => elements.importDialog.close());
   elements.importForm.addEventListener("submit", handleImportSubmit);
+  elements.searchForm.addEventListener("submit", handleSearchSave);
   elements.filterChips.forEach((chip) => {
     chip.addEventListener("click", () => {
       state.activeFilter = chip.dataset.filter;
       render();
     });
   });
+}
+
+async function refreshState() {
+  const response = await fetch("/api/state");
+  const payload = await response.json();
+  state.searchPreferences = payload.searchPreferences || {};
+  state.criteria = payload.criteria || {};
+  state.digestsByDate = payload.digestsByDate || {};
 }
 
 function toggleUtilityPanel(panelName) {
@@ -75,11 +99,25 @@ function toggleUtilityPanel(panelName) {
   renderUtilityPanels();
 }
 
-async function refreshState() {
-  const response = await fetch("/api/state");
-  const payload = await response.json();
-  state.criteria = payload.criteria || {};
-  state.digestsByDate = payload.digestsByDate || {};
+async function handleSearchSave(event) {
+  event.preventDefault();
+  const payload = {
+    roleName: elements.roleNameInput.value.trim(),
+    city: elements.cityInput.value.trim(),
+    state: elements.stateInput.value.trim(),
+    compMin: Number(elements.compMinInput.value),
+    compMax: Number(elements.compMaxInput.value),
+    resultLimit: Number(elements.resultLimitInput.value),
+  };
+  await fetch("/api/search-preferences", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  await refreshState();
+  render();
+  state.criteriaPanelOpen = false;
+  renderUtilityPanels();
 }
 
 function openImportDialog() {
@@ -88,8 +126,8 @@ function openImportDialog() {
   elements.importJsonInput.value = JSON.stringify(
     {
       date: state.selectedDateKey,
+      searchPreferences: state.searchPreferences,
       summary: selectedDigest?.summary || "Fresh daily digest",
-      criteria: state.criteria,
       jobs: selectedDigest?.jobs || [],
     },
     null,
@@ -102,7 +140,6 @@ function openImportDialog() {
 async function handleImportSubmit(event) {
   event.preventDefault();
   let payload;
-
   try {
     payload = JSON.parse(elements.importJsonInput.value);
   } catch (error) {
@@ -110,10 +147,10 @@ async function handleImportSubmit(event) {
     elements.importStatus.textContent = "That JSON is invalid. Double-check the payload and try again.";
     return;
   }
-
   if (elements.importDateInput.value) {
     payload.date = elements.importDateInput.value;
   }
+  payload.searchPreferences = payload.searchPreferences || state.searchPreferences;
 
   const response = await fetch("/api/import-digest", {
     method: "POST",
@@ -126,7 +163,6 @@ async function handleImportSubmit(event) {
     elements.importStatus.textContent = "Import failed. Make sure each job has a title, company, and link.";
     return;
   }
-
   await refreshState();
   state.selectedDateKey = payload.date || getDateKey(new Date());
   state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
@@ -137,34 +173,46 @@ async function handleImportSubmit(event) {
 function render() {
   const digest = getSelectedDigest();
   const allJobs = sortJobs(digest?.jobs || []);
-  const filteredJobs = applyFilter(allJobs);
-  const exactJobs = filteredJobs.filter((job) => job.salaryBandFit === "exact");
-  const overlapJobs = filteredJobs.filter((job) => job.salaryBandFit !== "exact");
-  const publicCount = allJobs.filter((job) => job.companyStatus === "public").length;
-  const shortlistedCount = allJobs.filter((job) => job.shortlisted).length;
-  const appliedCount = allJobs.filter((job) => job.applied).length;
+  const recommendedJobs = applyViewFilter(allJobs.filter((job) => !job.applied && !job.notInterested));
+  const appliedJobs = applyViewFilter(allJobs.filter((job) => job.applied));
+  const notInterestedJobs = applyViewFilter(allJobs.filter((job) => job.notInterested));
+  const exactJobs = recommendedJobs.filter((job) => job.salaryBandFit === "exact");
+  const overlapJobs = recommendedJobs.filter((job) => job.salaryBandFit !== "exact");
+  const visibleGroupsCount = exactJobs.length + overlapJobs.length + appliedJobs.length + notInterestedJobs.length;
 
   elements.activeDateCaption.textContent = getRelativeDateLabel(state.selectedDateKey);
   elements.todayLabel.textContent = formatDateLabel(state.selectedDateKey);
-  elements.digestSummary.textContent =
-    digest?.summary || "No digest is available for this date yet.";
-  elements.jobCount.textContent = String(allJobs.length);
-  elements.publicCount.textContent = String(publicCount);
-  elements.shortlistedCount.textContent = String(appliedCount || shortlistedCount);
-  elements.exactJobList.innerHTML = "";
-  elements.overlapJobList.innerHTML = "";
-  elements.emptyState.hidden = filteredJobs.length > 0;
+  elements.digestSummary.textContent = digest?.summary || "No digest is available for this date yet.";
+  elements.recommendedCount.textContent = String(allJobs.filter((job) => !job.applied && !job.notInterested).length);
+  elements.appliedCount.textContent = String(allJobs.filter((job) => job.applied).length);
+  elements.notInterestedCount.textContent = String(allJobs.filter((job) => job.notInterested).length);
+  elements.emptyState.hidden = visibleGroupsCount > 0;
 
-  renderCriteria();
+  renderDynamicText();
+  renderSearchForm();
   renderFilterState();
   renderUtilityPanels();
-  exactJobs.forEach((job) => {
-    elements.exactJobList.appendChild(createJobCard(job));
-  });
-  overlapJobs.forEach((job) => {
-    elements.overlapJobList.appendChild(createJobCard(job));
-  });
+  renderGroups(exactJobs, overlapJobs, appliedJobs, notInterestedJobs);
   renderCalendar();
+}
+
+function renderDynamicText() {
+  const prefs = state.searchPreferences;
+  const locationLabel = formatLocation(prefs.city, prefs.state);
+  elements.heroTitle.textContent = `${prefs.roleName || "Product roles"} in ${locationLabel}`;
+  elements.heroCopy.textContent = `Tracking up to ${prefs.resultLimit || 50} daily roles with base comp between ${formatCurrency(prefs.compMin)} and ${formatCurrency(prefs.compMax)}.`;
+  elements.resultsTitle.textContent = `${prefs.resultLimit || 50} role digest for ${locationLabel}`;
+  document.title = `${prefs.roleName || "Product Manager"} Jobs | ${locationLabel}`;
+}
+
+function renderSearchForm() {
+  const prefs = state.searchPreferences;
+  elements.roleNameInput.value = prefs.roleName || "";
+  elements.cityInput.value = prefs.city || "";
+  elements.stateInput.value = prefs.state || "";
+  elements.compMinInput.value = prefs.compMin || "";
+  elements.compMaxInput.value = prefs.compMax || "";
+  elements.resultLimitInput.value = prefs.resultLimit || "";
 }
 
 function renderUtilityPanels() {
@@ -174,90 +222,138 @@ function renderUtilityPanels() {
   elements.toggleCalendar.classList.toggle("is-active", state.calendarPanelOpen);
 }
 
-function renderCriteria() {
-  const items = [
-    `Location: ${state.criteria.location || "Bay Area"}`,
-    `Salary: ${state.criteria.salary || "$190,000-$220,000"}`,
-    `Focus: ${(state.criteria.industries || []).join(" + ")}`,
-    `Sources: ${(state.criteria.sources || []).join(", ")}`,
-    `Ranking: ${state.criteria.ranking || "Public first"}`,
-  ];
-
-  elements.criteriaList.innerHTML = "";
-  items.forEach((item) => {
-    const entry = document.createElement("li");
-    entry.textContent = item;
-    elements.criteriaList.appendChild(entry);
-  });
-}
-
 function renderFilterState() {
   elements.filterChips.forEach((chip) => {
     chip.classList.toggle("is-active", chip.dataset.filter === state.activeFilter);
   });
 }
 
+function renderGroups(exactJobs, overlapJobs, appliedJobs, notInterestedJobs) {
+  elements.exactJobList.innerHTML = "";
+  elements.overlapJobList.innerHTML = "";
+  elements.appliedJobList.innerHTML = "";
+  elements.notInterestedJobList.innerHTML = "";
+
+  elements.recommendedSection.hidden = !["all", "recommended", "public", "private"].includes(state.activeFilter) && state.activeFilter !== "all";
+  elements.appliedSection.hidden = !["all", "applied", "public", "private"].includes(state.activeFilter) && state.activeFilter !== "all";
+  elements.notInterestedSection.hidden = !["all", "not-interested", "public", "private"].includes(state.activeFilter) && state.activeFilter !== "all";
+
+  exactJobs.forEach((job) => elements.exactJobList.appendChild(createJobCard(job)));
+  overlapJobs.forEach((job) => elements.overlapJobList.appendChild(createJobCard(job)));
+  appliedJobs.forEach((job) => elements.appliedJobList.appendChild(createJobCard(job)));
+  notInterestedJobs.forEach((job) => elements.notInterestedJobList.appendChild(createJobCard(job)));
+
+  if (state.activeFilter === "applied") {
+    elements.recommendedSection.hidden = true;
+    elements.notInterestedSection.hidden = true;
+  }
+  if (state.activeFilter === "not-interested") {
+    elements.recommendedSection.hidden = true;
+    elements.appliedSection.hidden = true;
+  }
+  if (state.activeFilter === "recommended") {
+    elements.appliedSection.hidden = true;
+    elements.notInterestedSection.hidden = true;
+  }
+}
+
 function createJobCard(job) {
   const node = elements.jobTemplate.content.firstElementChild.cloneNode(true);
-  const title = node.querySelector(".job-title");
-  const company = node.querySelector(".job-company");
-  const companyStatusBadge = node.querySelector(".company-status-badge");
-  const newBadge = node.querySelector(".new-badge");
-  const sourceBadge = node.querySelector(".source-badge");
-  const bandBadge = node.querySelector(".band-badge");
-  const location = node.querySelector(".job-location");
-  const salary = node.querySelector(".job-salary");
-  const equity = node.querySelector(".job-equity");
-  const companyStatus = node.querySelector(".job-company-status");
-  const companySize = node.querySelector(".job-company-size");
+  node.querySelector(".job-title").textContent = job.title;
+  node.querySelector(".job-company").textContent = job.company;
+  node.querySelector(".company-status-badge").textContent =
+    job.companyStatus === "public" ? "Public" : "Private";
+
+  const repeatBadge = node.querySelector(".repeat-badge");
+  if (job.shownYesterday) {
+    repeatBadge.hidden = false;
+    repeatBadge.textContent = "Shown yesterday";
+  } else if (job.seenBefore) {
+    repeatBadge.hidden = false;
+    repeatBadge.textContent = "Seen before";
+  }
+
+  node.querySelector(".new-badge").hidden = !job.isNewToday;
+  node.querySelector(".source-badge").textContent = job.source;
+  node.querySelector(".band-badge").textContent = job.salaryBandFit === "exact" ? "Exact fit" : "Near match";
+  node.querySelector(".job-location").textContent = job.location || "Not listed";
+  node.querySelector(".job-salary").textContent = job.salary || "Not listed";
+  node.querySelector(".job-equity").textContent = job.equityStatus || "Not listed";
+  node.querySelector(".job-company-status").textContent = job.companySharesNote || "Not listed";
+  node.querySelector(".job-company-size").textContent = job.companySizeHint || "Not specified";
+  node.querySelector(".fit-note").textContent = job.fitNote || "No fit note available.";
+  node.querySelector(".recruiter-value").textContent =
+    formatRecruiter(job.recruiterName, job.recruiterContact) || "Not listed";
+
   const benefitList = node.querySelector(".benefit-list");
-  const recruiterValue = node.querySelector(".recruiter-value");
-  const fitNote = node.querySelector(".fit-note");
-  const applyLink = node.querySelector(".apply-link");
-  const saveButton = node.querySelector(".save-button");
-  const appliedButton = node.querySelector(".applied-button");
-
-  title.textContent = job.title;
-  company.textContent = job.company;
-  companyStatusBadge.textContent = job.companyStatus === "public" ? "Public" : "Private";
-  newBadge.hidden = !job.isNewToday;
-  sourceBadge.textContent = job.source;
-  bandBadge.textContent = job.salaryBandFit === "exact" ? "Exact band fit" : "Overlap fit";
-  location.textContent = job.location;
-  salary.textContent = job.salary;
-  equity.textContent = job.equityStatus;
-  companyStatus.textContent = job.companySharesNote;
-  companySize.textContent = job.companySizeHint || "Not specified";
-  fitNote.textContent = job.fitNote;
-  applyLink.href = job.link;
-  saveButton.textContent = job.shortlisted ? "Shortlisted" : "Save";
-  saveButton.classList.toggle("is-saved", job.shortlisted);
-  appliedButton.textContent = job.applied ? "Applied" : "Mark applied";
-  appliedButton.classList.toggle("is-active", job.applied);
-
   benefitList.innerHTML = "";
-  job.benefits.forEach((benefit) => {
+  (job.benefits || []).forEach((benefit) => {
     const item = document.createElement("li");
     item.textContent = benefit;
     benefitList.appendChild(item);
   });
+  if (!job.benefits || !job.benefits.length) {
+    const item = document.createElement("li");
+    item.textContent = "Benefits not listed";
+    benefitList.appendChild(item);
+  }
 
-  recruiterValue.textContent =
-    formatRecruiter(job.recruiterName, job.recruiterContact) || "Not listed";
+  const applyLink = node.querySelector(".apply-link");
+  applyLink.href = job.link;
 
+  const saveButton = node.querySelector(".save-button");
+  saveButton.textContent = job.shortlisted ? "Saved" : "Save";
+  saveButton.classList.toggle("is-saved", job.shortlisted);
   saveButton.addEventListener("click", async () => {
     await updateJob(state.selectedDateKey, job.id, { shortlisted: !job.shortlisted });
     await refreshState();
     render();
   });
 
+  const appliedButton = node.querySelector(".applied-button");
+  appliedButton.textContent = job.applied ? "Applied" : "Mark applied";
+  appliedButton.classList.toggle("is-active", job.applied);
   appliedButton.addEventListener("click", async () => {
     await updateJob(state.selectedDateKey, job.id, { applied: !job.applied });
     await refreshState();
     render();
   });
 
+  const notInterestedButton = node.querySelector(".not-interested-button");
+  notInterestedButton.textContent = job.notInterested ? "Not interested" : "Mark not interested";
+  notInterestedButton.classList.toggle("is-active", job.notInterested);
+  notInterestedButton.addEventListener("click", async () => {
+    await updateJob(state.selectedDateKey, job.id, { notInterested: !job.notInterested });
+    await refreshState();
+    render();
+  });
+
   return node;
+}
+
+function applyViewFilter(jobs) {
+  switch (state.activeFilter) {
+    case "public":
+      return jobs.filter((job) => job.companyStatus === "public");
+    case "private":
+      return jobs.filter((job) => job.companyStatus === "private");
+    case "applied":
+      return jobs.filter((job) => job.applied);
+    case "not-interested":
+      return jobs.filter((job) => job.notInterested);
+    case "recommended":
+      return jobs.filter((job) => !job.applied && !job.notInterested);
+    default:
+      return jobs;
+  }
+}
+
+async function updateJob(dateKey, jobId, updates) {
+  await fetch(`/api/jobs/${encodeURIComponent(dateKey)}/${encodeURIComponent(jobId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
 }
 
 function formatRecruiter(name, contact) {
@@ -273,46 +369,26 @@ function getSelectedDigest() {
 
 function sortJobs(jobs) {
   return [...jobs].sort((left, right) => {
+    if (left.applied !== right.applied) {
+      return left.applied ? 1 : -1;
+    }
+    if (left.notInterested !== right.notInterested) {
+      return left.notInterested ? 1 : -1;
+    }
     if (left.companyStatus !== right.companyStatus) {
       return left.companyStatus === "public" ? -1 : 1;
     }
-    if (left.shortlisted !== right.shortlisted) {
-      return left.shortlisted ? -1 : 1;
+    if (left.shownYesterday !== right.shownYesterday) {
+      return left.shownYesterday ? 1 : -1;
     }
-    return left.company.localeCompare(right.company);
-  });
-}
-
-function applyFilter(jobs) {
-  switch (state.activeFilter) {
-    case "public":
-      return jobs.filter((job) => job.companyStatus === "public");
-    case "private":
-      return jobs.filter((job) => job.companyStatus === "private");
-    case "shortlisted":
-      return jobs.filter((job) => job.shortlisted);
-    case "active":
-      return jobs.filter((job) => !job.applied);
-    case "applied":
-      return jobs.filter((job) => job.applied);
-    default:
-      return jobs;
-  }
-}
-
-async function updateJob(dateKey, jobId, updates) {
-  await fetch(`/api/jobs/${encodeURIComponent(dateKey)}/${encodeURIComponent(jobId)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(updates),
+    return left.company.localeCompare(right.company) || left.title.localeCompare(right.title);
   });
 }
 
 function renderCalendar() {
   const monthStart = state.visibleMonth;
   const gridStart = addDays(monthStart, -monthStart.getDay());
-  const todayKey = getDateKey(new Date());
-
+  const today = getDateKey(new Date());
   elements.calendarMonthLabel.textContent = monthStart.toLocaleDateString(undefined, {
     month: "long",
     year: "numeric",
@@ -323,18 +399,16 @@ function renderCalendar() {
     const currentDate = addDays(gridStart, index);
     const dateKey = getDateKey(currentDate);
     const digest = state.digestsByDate[dateKey];
-    const jobCount = digest?.jobs?.length || 0;
-    const publicCount = digest?.jobs?.filter((job) => job.companyStatus === "public").length || 0;
+    const jobs = digest?.jobs || [];
     const button = document.createElement("button");
-
     button.type = "button";
     button.className = "calendar-day";
     button.classList.toggle("is-outside-month", currentDate.getMonth() !== monthStart.getMonth());
     button.classList.toggle("is-selected", dateKey === state.selectedDateKey);
-    button.classList.toggle("is-today", dateKey === todayKey);
+    button.classList.toggle("is-today", dateKey === today);
     button.innerHTML = `
       <span class="calendar-day-number">${currentDate.getDate()}</span>
-      <span class="calendar-day-meta">${jobCount ? `${publicCount} public / ${jobCount} total` : "No digest"}</span>
+      <span class="calendar-day-meta">${jobs.length ? `${jobs.filter((job) => !job.applied && !job.notInterested).length} recommended` : "No digest"}</span>
     `;
     button.addEventListener("click", () => {
       state.selectedDateKey = dateKey;
@@ -383,7 +457,6 @@ function getRelativeDateLabel(dateKey) {
   const todayKey = getDateKey(new Date());
   const yesterdayKey = getDateKey(addDays(new Date(), -1));
   const tomorrowKey = getDateKey(addDays(new Date(), 1));
-
   if (dateKey === todayKey) {
     return "Today";
   }
@@ -404,4 +477,16 @@ function addDays(date, days) {
 
 function startOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
+function formatLocation(city, stateName) {
+  return [city, stateName].filter(Boolean).join(", ") || "your target market";
 }

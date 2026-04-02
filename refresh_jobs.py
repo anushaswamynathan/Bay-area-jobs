@@ -122,6 +122,9 @@ SALARY_PATTERNS = [
 
 @dataclass
 class Criteria:
+    role_name: str
+    city: str
+    state: str
     title_keywords: list[str]
     preferred_industries: list[str]
     bay_area_keywords: list[str]
@@ -150,18 +153,26 @@ class TextExtractor(HTMLParser):
 def load_source_catalog() -> tuple[Criteria, list[dict]]:
     payload = json.loads(SOURCE_CATALOG_PATH.read_text())
     criteria = payload["criteria"]
+    search_preferences = server.load_state().get("searchPreferences", server.default_search_preferences())
+    role_name = search_preferences.get("roleName", "Product Manager")
+    city = search_preferences.get("city", "San Francisco")
+    state_name = search_preferences.get("state", "CA")
+    location_keywords = [f"{city}".lower(), f"{city}, {state_name}".lower(), state_name.lower()]
     return (
         Criteria(
-            title_keywords=[item.lower() for item in criteria["titleKeywords"]],
+            role_name=role_name,
+            city=city,
+            state=state_name,
+            title_keywords=[role_name.lower(), *[item.lower() for item in criteria.get("titleKeywords", [])]],
             preferred_industries=[item.lower() for item in criteria["preferredIndustries"]],
-            bay_area_keywords=[item.lower() for item in criteria["bayAreaKeywords"]],
-            salary_min=int(criteria["salaryMin"]),
-            salary_max=int(criteria["salaryMax"]),
+            bay_area_keywords=location_keywords,
+            salary_min=int(search_preferences.get("compMin", criteria["salaryMin"])),
+            salary_max=int(search_preferences.get("compMax", criteria["salaryMax"])),
             min_benefits_count=int(criteria["minBenefitsCount"]),
-            max_jobs_per_day=int(criteria.get("maxJobsPerDay", 50)),
-            target_jobs_per_day=int(criteria.get("targetJobsPerDay", 50)),
-            fallback_salary_min=int(criteria.get("fallbackSalaryMin", 170000)),
-            fallback_salary_max=int(criteria.get("fallbackSalaryMax", 240000)),
+            max_jobs_per_day=int(search_preferences.get("resultLimit", criteria.get("maxJobsPerDay", 50))),
+            target_jobs_per_day=int(search_preferences.get("resultLimit", criteria.get("targetJobsPerDay", 50))),
+            fallback_salary_min=int(min(search_preferences.get("compMin", criteria["salaryMin"]), criteria.get("fallbackSalaryMin", 170000))),
+            fallback_salary_max=int(max(search_preferences.get("compMax", criteria["salaryMax"]), criteria.get("fallbackSalaryMax", 240000))),
         ),
         payload["sources"],
     )
@@ -769,11 +780,19 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
     return {
         "date": server.today_key(),
         "summary": (
-            f"Refreshed from {len(criteria_sources)} configured sources. "
-            f"Public companies rank first, jobs that are closed or no longer accepting applications are excluded, and the digest is capped at {criteria.max_jobs_per_day} roles per day."
+            f"Daily digest for {criteria.role_name} roles in {criteria.city}, {criteria.state}. "
+            f"Refreshed from {len(criteria_sources)} configured sources, capped at {criteria.max_jobs_per_day} results."
         ),
+        "searchPreferences": {
+            "roleName": criteria.role_name,
+            "city": criteria.city,
+            "state": criteria.state,
+            "compMin": criteria.salary_min,
+            "compMax": criteria.salary_max,
+            "resultLimit": criteria.max_jobs_per_day,
+        },
         "criteria": {
-            "location": "San Francisco Bay Area",
+            "location": f"{criteria.city}, {criteria.state}",
             "salary": f"${criteria.salary_min:,.0f}-${criteria.salary_max:,.0f}",
             "industries": ["Fintech", "Marketplaces"],
             "sources": criteria_sources,

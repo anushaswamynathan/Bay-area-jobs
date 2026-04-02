@@ -127,6 +127,24 @@ h2 {
   padding-top: 20px;
 }
 
+.search-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.search-field {
+  display: grid;
+  gap: 8px;
+}
+
+.search-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 6px;
+}
+
 .panel-status,
 .panel-head,
 .panel-actions,
@@ -243,6 +261,11 @@ h2 {
   color: #2f6b22;
 }
 
+.not-interested-button.is-active {
+  background: rgba(166, 61, 64, 0.16);
+  color: #a63d40;
+}
+
 button:hover,
 a:hover {
   transform: translateY(-1px);
@@ -300,6 +323,16 @@ a:hover {
   margin-top: 28px;
 }
 
+.recommendation-subgroup + .recommendation-subgroup {
+  margin-top: 22px;
+}
+
+.subgroup-label {
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .group-head {
   display: flex;
   justify-content: space-between;
@@ -342,6 +375,7 @@ a:hover {
 }
 
 .company-status-badge,
+.repeat-badge,
 .new-badge,
 .source-badge,
 .band-badge {
@@ -356,6 +390,11 @@ a:hover {
 .company-status-badge {
   background: rgba(8, 76, 97, 0.12);
   color: var(--accent-deep);
+}
+
+.repeat-badge {
+  background: rgba(20, 33, 61, 0.08);
+  color: var(--ink);
 }
 
 .new-badge {
@@ -397,6 +436,12 @@ a:hover {
 .job-actions {
   margin-top: 20px;
   justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.card-utility {
+  display: flex;
+  gap: 10px;
 }
 
 .import-dialog {
@@ -426,6 +471,8 @@ a:hover {
 }
 
 input[type="date"],
+input[type="text"],
+input[type="number"],
 textarea {
   width: 100%;
   padding: 14px 16px;
@@ -455,6 +502,10 @@ textarea {
   .hero {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .search-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .job-grid {
@@ -501,6 +552,10 @@ textarea {
   }
 
   .job-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .search-form {
     grid-template-columns: 1fr;
   }
 }

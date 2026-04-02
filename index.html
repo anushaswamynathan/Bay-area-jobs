@@ -6,7 +6,7 @@
     <title>Bay PM Jobs</title>
     <meta
       name="description"
-      content="Review a daily Bay Area product manager job digest with public-company prioritization."
+      content="Track daily product job recommendations, applied jobs, and not interested roles."
     />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
@@ -15,22 +15,14 @@
     <main class="app-shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">Bay Area job search agent</p>
-          <h1>Bay PM Jobs</h1>
-          <p class="hero-copy">
-            Daily ranked PM roles with public companies first.
-          </p>
+          <p class="eyebrow">Daily job tracker</p>
+          <h1 id="hero-title"></h1>
+          <p id="hero-copy" class="hero-copy"></p>
         </div>
         <div class="hero-actions">
-          <button id="open-import-dialog" class="primary-button" type="button">
-            Import digest
-          </button>
-          <button id="toggle-criteria" class="secondary-button" type="button">
-            Search frame
-          </button>
-          <button id="toggle-calendar" class="secondary-button" type="button">
-            Calendar
-          </button>
+          <button id="open-import-dialog" class="primary-button" type="button">Import digest</button>
+          <button id="toggle-criteria" class="secondary-button" type="button">Edit search</button>
+          <button id="toggle-calendar" class="secondary-button" type="button">Daily history</button>
         </div>
       </section>
 
@@ -42,16 +34,16 @@
         </div>
         <div class="status-grid">
           <div class="status-card">
-            <span class="status-value" id="job-count">0</span>
-            <span class="status-text">jobs tracked</span>
+            <span class="status-value" id="recommended-count">0</span>
+            <span class="status-text">recommended</span>
           </div>
           <div class="status-card">
-            <span class="status-value" id="public-count">0</span>
-            <span class="status-text">public companies</span>
-          </div>
-          <div class="status-card">
-            <span class="status-value" id="shortlisted-count">0</span>
+            <span class="status-value" id="applied-count">0</span>
             <span class="status-text">applied</span>
+          </div>
+          <div class="status-card">
+            <span class="status-value" id="not-interested-count">0</span>
+            <span class="status-text">not interested</span>
           </div>
         </div>
       </section>
@@ -60,54 +52,101 @@
         <div class="panel-head">
           <div>
             <p class="panel-label">Search frame</p>
-            <h2>Current criteria</h2>
+            <h2>Edit the next run</h2>
           </div>
         </div>
-        <ul class="criteria-list" id="criteria-list"></ul>
+        <form id="search-form" class="search-form">
+          <label class="search-field">
+            <span class="job-label">Role name</span>
+            <input id="role-name-input" type="text" />
+          </label>
+          <label class="search-field">
+            <span class="job-label">City</span>
+            <input id="city-input" type="text" />
+          </label>
+          <label class="search-field">
+            <span class="job-label">State</span>
+            <input id="state-input" type="text" maxlength="20" />
+          </label>
+          <label class="search-field">
+            <span class="job-label">Base comp min</span>
+            <input id="comp-min-input" type="number" min="0" step="1000" />
+          </label>
+          <label class="search-field">
+            <span class="job-label">Base comp max</span>
+            <input id="comp-max-input" type="number" min="0" step="1000" />
+          </label>
+          <label class="search-field">
+            <span class="job-label">Result limit</span>
+            <input id="result-limit-input" type="number" min="1" max="100" step="1" />
+          </label>
+          <div class="search-actions">
+            <button class="primary-button" type="submit">Save search frame</button>
+          </div>
+        </form>
       </section>
 
       <section class="panel jobs-panel">
         <div class="panel-head jobs-head">
           <div>
             <p class="panel-label">Daily digest</p>
-            <h2>Ranked job matches</h2>
+            <h2 id="results-title"></h2>
           </div>
           <div class="filters" role="group" aria-label="Digest filters">
             <button class="filter-chip is-active" data-filter="all" type="button">All</button>
+            <button class="filter-chip" data-filter="recommended" type="button">Recommended</button>
+            <button class="filter-chip" data-filter="applied" type="button">Applied</button>
+            <button class="filter-chip" data-filter="not-interested" type="button">Not interested</button>
             <button class="filter-chip" data-filter="public" type="button">Public only</button>
             <button class="filter-chip" data-filter="private" type="button">Private only</button>
-            <button class="filter-chip" data-filter="shortlisted" type="button">Shortlisted</button>
-            <button class="filter-chip" data-filter="active" type="button">Hide applied</button>
-            <button class="filter-chip" data-filter="applied" type="button">Applied</button>
           </div>
         </div>
-        <section class="job-group">
+
+        <section id="recommended-section" class="job-group">
           <div class="group-head">
             <div>
-              <p class="panel-label">Exact-fit</p>
-              <h3>Most aligned to target comp</h3>
+              <p class="panel-label">Recommended</p>
+              <h3>Fresh roles to review</h3>
             </div>
-            <p class="group-copy">Public companies still rank ahead inside each section.</p>
+            <p class="group-copy">Applied and not interested jobs are excluded from recommendations automatically.</p>
           </div>
-          <div id="exact-job-list" class="job-list"></div>
+          <div class="recommendation-subgroup">
+            <p class="subgroup-label">Exact fit</p>
+            <div id="exact-job-list" class="job-list"></div>
+          </div>
+          <div class="recommendation-subgroup">
+            <p class="subgroup-label">Near matches</p>
+            <div id="overlap-job-list" class="job-list"></div>
+          </div>
         </section>
-        <section class="job-group">
+
+        <section id="applied-section" class="job-group">
           <div class="group-head">
             <div>
-              <p class="panel-label">Overlap-fit</p>
-              <h3>Worth checking, but salary range stretches</h3>
+              <p class="panel-label">Applied</p>
+              <h3>Already submitted</h3>
             </div>
-            <p class="group-copy">Useful for larger equity packages or especially strong fintech and marketplace relevance.</p>
           </div>
-          <div id="overlap-job-list" class="job-list"></div>
+          <div id="applied-job-list" class="job-list"></div>
         </section>
-        <p id="empty-state" class="empty-state">No jobs match the current filter.</p>
+
+        <section id="not-interested-section" class="job-group">
+          <div class="group-head">
+            <div>
+              <p class="panel-label">Not Interested</p>
+              <h3>Hidden from your recommendations</h3>
+            </div>
+          </div>
+          <div id="not-interested-job-list" class="job-list"></div>
+        </section>
+
+        <p id="empty-state" class="empty-state">No jobs match the current view.</p>
       </section>
 
       <section id="calendar-panel" class="panel utility-panel" hidden>
         <div class="panel-head">
           <div>
-            <p class="panel-label">Digest calendar</p>
+            <p class="panel-label">Daily history</p>
             <h2 id="calendar-month-label"></h2>
           </div>
           <div class="panel-actions">
@@ -135,9 +174,7 @@
           <div>
             <p class="panel-label">Daily import</p>
             <h2>Paste a live digest JSON payload</h2>
-            <p class="status-subtitle">
-              This lets an automation or manual run drop fresh search results directly into the app.
-            </p>
+            <p class="status-subtitle">Use this to import fresh results or test a manual digest.</p>
           </div>
         </div>
 
@@ -152,7 +189,7 @@
             id="import-json-input"
             rows="16"
             spellcheck="false"
-            placeholder='{"date":"2026-04-01","summary":"Fresh digest","jobs":[{"title":"Senior Product Manager","company":"Example","link":"https://example.com/job"}]}'
+            placeholder='{"date":"2026-04-02","searchPreferences":{"roleName":"Product Manager","city":"San Francisco","state":"CA","compMin":190000,"compMax":220000,"resultLimit":50},"jobs":[]}'
           ></textarea>
         </label>
 
@@ -171,6 +208,7 @@
           <div>
             <div class="job-badges">
               <span class="company-status-badge"></span>
+              <span class="repeat-badge" hidden></span>
               <span class="new-badge" hidden>New today</span>
               <span class="source-badge"></span>
               <span class="band-badge"></span>
@@ -178,7 +216,9 @@
             <h3 class="job-title"></h3>
             <p class="job-company"></p>
           </div>
-          <button class="save-button" type="button"></button>
+          <div class="card-utility">
+            <button class="save-button" type="button"></button>
+          </div>
         </div>
 
         <div class="job-grid">
@@ -209,7 +249,7 @@
           <ul class="benefit-list"></ul>
         </div>
 
-        <div class="job-section recruiter-section">
+        <div class="job-section">
           <p class="job-label">Recruiter info</p>
           <p class="job-value recruiter-value"></p>
         </div>
@@ -222,6 +262,7 @@
         <div class="job-actions">
           <a class="primary-button apply-link" target="_blank" rel="noreferrer">Open listing</a>
           <button class="secondary-button applied-button" type="button"></button>
+          <button class="secondary-button not-interested-button" type="button"></button>
         </div>
       </article>
     </template>

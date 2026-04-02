@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+from __future__ import annotations
+
 import json
 import os
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -23,8 +25,56 @@ def today_key() -> str:
     return date.today().isoformat()
 
 
-def create_seed_state() -> dict:
-    initial_jobs = [
+def yesterday_key_for(date_value: str) -> str:
+    return (date.fromisoformat(date_value) - timedelta(days=1)).isoformat()
+
+
+def default_search_preferences() -> dict:
+    return {
+        "roleName": "Product Manager",
+        "city": "San Francisco",
+        "state": "CA",
+        "compMin": 190000,
+        "compMax": 220000,
+        "resultLimit": 50,
+    }
+
+
+def normalize_search_preferences(payload: dict | None, fallback: dict | None = None) -> dict:
+    base = dict(fallback or default_search_preferences())
+    payload = payload or {}
+    role_name = str(payload.get("roleName", base["roleName"])).strip() or base["roleName"]
+    city = str(payload.get("city", base["city"])).strip() or base["city"]
+    state = str(payload.get("state", base["state"])).strip() or base["state"]
+    comp_min = coerce_int(payload.get("compMin"), base["compMin"])
+    comp_max = coerce_int(payload.get("compMax"), base["compMax"])
+    result_limit = coerce_int(payload.get("resultLimit"), base["resultLimit"])
+    result_limit = min(max(result_limit, 1), 100)
+    if comp_min > comp_max:
+        comp_min, comp_max = comp_max, comp_min
+    return {
+        "roleName": role_name,
+        "city": city,
+        "state": state,
+        "compMin": comp_min,
+        "compMax": comp_max,
+        "resultLimit": result_limit,
+    }
+
+
+def search_preferences_to_criteria(preferences: dict, sources: list[str] | None = None) -> dict:
+    location = ", ".join(part for part in [preferences.get("city", ""), preferences.get("state", "")] if part)
+    return {
+        "location": location or "San Francisco, CA",
+        "salary": f"${preferences['compMin']:,.0f}-${preferences['compMax']:,.0f}",
+        "industries": ["Fintech", "Marketplaces"],
+        "sources": sources or ["Company career pages", "LinkedIn", "Reputable job boards"],
+        "ranking": "Public companies first, then private/startups",
+    }
+
+
+def create_seed_jobs() -> list[dict]:
+    return [
         {
             "id": "uber-financial-products",
             "title": "Senior Product Manager, Financial Products",
@@ -36,11 +86,7 @@ def create_seed_state() -> dict:
             "salary": "$190,000-$211,000",
             "salaryBandFit": "exact",
             "equityStatus": "Explicitly listed",
-            "benefits": [
-                "Equity award eligibility",
-                "Bonus eligibility",
-                "Comprehensive benefits package",
-            ],
+            "benefits": ["Equity award eligibility", "Bonus eligibility", "Comprehensive benefits package"],
             "recruiterName": "",
             "recruiterContact": "",
             "source": "Company career page",
@@ -48,7 +94,11 @@ def create_seed_state() -> dict:
             "link": "https://www.uber.com/global/en/careers/list/145353/",
             "fitNote": "Large public company with fintech-adjacent product scope and strong compensation fit.",
             "isNewToday": True,
+            "shownYesterday": False,
+            "seenBefore": False,
+            "applicationStatus": "open",
             "applied": False,
+            "notInterested": False,
             "shortlisted": True,
         },
         {
@@ -62,11 +112,7 @@ def create_seed_state() -> dict:
             "salary": "$190,000-$211,000",
             "salaryBandFit": "exact",
             "equityStatus": "Explicitly listed",
-            "benefits": [
-                "Equity award eligibility",
-                "Bonus eligibility",
-                "401(k)",
-            ],
+            "benefits": ["Equity award eligibility", "Bonus eligibility", "401(k)"],
             "recruiterName": "",
             "recruiterContact": "",
             "source": "Company career page",
@@ -74,7 +120,11 @@ def create_seed_state() -> dict:
             "link": "https://www.uber.com/careers/list/154261",
             "fitNote": "Strong marketplace role at a public company with direct salary-band alignment.",
             "isNewToday": False,
+            "shownYesterday": False,
+            "seenBefore": False,
+            "applicationStatus": "open",
             "applied": False,
+            "notInterested": False,
             "shortlisted": False,
         },
         {
@@ -88,11 +138,7 @@ def create_seed_state() -> dict:
             "salary": "$150,000-$220,000",
             "salaryBandFit": "overlap",
             "equityStatus": "Explicitly listed",
-            "benefits": [
-                "Equity",
-                "Bonus",
-                "Location-based benefits",
-            ],
+            "benefits": ["Equity", "Bonus", "Location-based benefits"],
             "recruiterName": "",
             "recruiterContact": "",
             "source": "Ashby",
@@ -100,7 +146,11 @@ def create_seed_state() -> dict:
             "link": "https://jobs.ashbyhq.com/airwallex/426c17cb-4343-435d-a03e-c0b4e20b9109",
             "fitNote": "Excellent fintech relevance with compensation that overlaps the target band.",
             "isNewToday": True,
+            "shownYesterday": False,
+            "seenBefore": False,
+            "applicationStatus": "open",
             "applied": False,
+            "notInterested": False,
             "shortlisted": True,
         },
         {
@@ -114,11 +164,7 @@ def create_seed_state() -> dict:
             "salary": "$203,000-$249,000",
             "salaryBandFit": "overlap",
             "equityStatus": "Explicitly listed for eligible positions",
-            "benefits": [
-                "Medical, dental, vision",
-                "401(k) match",
-                "Paid parental leave",
-            ],
+            "benefits": ["Medical, dental, vision", "401(k) match", "Paid parental leave"],
             "recruiterName": "Marina Kostioutchenko, CFA",
             "recruiterContact": "https://www.linkedin.com/jobs/view/senior-staff-product-manager-at-altruist-4371342447",
             "source": "LinkedIn",
@@ -126,7 +172,11 @@ def create_seed_state() -> dict:
             "link": "https://www.linkedin.com/jobs/view/senior-staff-product-manager-at-altruist-4371342447",
             "fitNote": "High-quality fintech comp package, though the top end exceeds the preferred range.",
             "isNewToday": False,
+            "shownYesterday": False,
+            "seenBefore": False,
+            "applicationStatus": "open",
             "applied": False,
+            "notInterested": False,
             "shortlisted": False,
         },
         {
@@ -140,12 +190,7 @@ def create_seed_state() -> dict:
             "salary": "$180,000-$210,000",
             "salaryBandFit": "overlap",
             "equityStatus": "Explicitly listed",
-            "benefits": [
-                "Startup equity",
-                "Health, dental, vision",
-                "Flexible PTO",
-                "Commuter benefits",
-            ],
+            "benefits": ["Startup equity", "Health, dental, vision", "Flexible PTO", "Commuter benefits"],
             "recruiterName": "",
             "recruiterContact": "",
             "source": "Ashby",
@@ -153,7 +198,11 @@ def create_seed_state() -> dict:
             "link": "https://jobs.ashbyhq.com/traba/b00513c3-56b8-4828-929c-2fe9f227b094",
             "fitNote": "Best marketplace startup fit in the current sample set.",
             "isNewToday": True,
+            "shownYesterday": False,
+            "seenBefore": False,
+            "applicationStatus": "open",
             "applied": False,
+            "notInterested": False,
             "shortlisted": True,
         },
         {
@@ -167,11 +216,7 @@ def create_seed_state() -> dict:
             "salary": "$150,000-$220,000",
             "salaryBandFit": "overlap",
             "equityStatus": "Explicitly listed",
-            "benefits": [
-                "Equity",
-                "Bonus",
-                "Location-based benefits",
-            ],
+            "benefits": ["Equity", "Bonus", "Location-based benefits"],
             "recruiterName": "",
             "recruiterContact": "",
             "source": "Ashby",
@@ -179,29 +224,38 @@ def create_seed_state() -> dict:
             "link": "https://jobs.ashbyhq.com/airwallex/458c1e45-697f-4770-8d0f-ab1d528b3baa",
             "fitNote": "Strong private fintech option with a broad growth charter.",
             "isNewToday": False,
+            "shownYesterday": False,
+            "seenBefore": False,
+            "applicationStatus": "open",
             "applied": False,
+            "notInterested": False,
             "shortlisted": False,
         },
     ]
 
+
+def create_seed_state() -> dict:
+    search_preferences = default_search_preferences()
     return {
-        "schemaVersion": 1,
-        "criteria": {
-            "location": "San Francisco Bay Area",
-            "salary": "$190,000-$220,000",
-            "industries": ["Fintech", "Marketplaces"],
-            "sources": ["Company career pages", "LinkedIn", "Reputable job boards"],
-            "ranking": "Public companies first, then private/startups",
-        },
+        "schemaVersion": 2,
+        "searchPreferences": search_preferences,
+        "criteria": search_preferences_to_criteria(search_preferences),
         "digestsByDate": {
             today_key(): {
                 "generatedAt": utc_now_iso(),
                 "summary": "Public companies are ranked first, followed by high-signal private companies and startups.",
-                "jobs": initial_jobs,
+                "jobs": create_seed_jobs(),
             }
         },
         "lastUpdatedAt": utc_now_iso(),
     }
+
+
+def coerce_int(value, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
 
 
 def coerce_string_list(value) -> list:
@@ -221,6 +275,14 @@ def is_open_application_status(value: str) -> bool:
         "no longer accepting applications",
     }
     return normalized not in closed_markers
+
+
+def job_key(job: dict) -> tuple[str, str, str]:
+    return (
+        str(job.get("company", "")).strip().lower(),
+        str(job.get("title", "")).strip().lower(),
+        str(job.get("link", "")).strip(),
+    )
 
 
 def normalize_job(job: dict, index: int) -> dict:
@@ -272,18 +334,96 @@ def normalize_job(job: dict, index: int) -> dict:
         "link": link,
         "fitNote": fit_note,
         "isNewToday": bool(job.get("isNewToday", False)),
+        "shownYesterday": bool(job.get("shownYesterday", False)),
+        "seenBefore": bool(job.get("seenBefore", False)),
         "applicationStatus": application_status,
         "applied": bool(job.get("applied", False)),
+        "notInterested": bool(job.get("notInterested", False)),
         "shortlisted": bool(job.get("shortlisted", False)),
     }
 
 
-def normalize_import_payload(payload: dict) -> dict:
-    criteria = payload.get("criteria", {})
+def ensure_state_shape(state: dict) -> dict:
+    if "digestsByDate" not in state:
+        return create_seed_state()
+
+    state["schemaVersion"] = 2
+    existing_sources = state.get("criteria", {}).get("sources", [])
+    state["searchPreferences"] = normalize_search_preferences(
+        state.get("searchPreferences"),
+        {
+            "roleName": state.get("searchPreferences", {}).get("roleName")
+            or state.get("criteria", {}).get("roleName")
+            or "Product Manager",
+            "city": state.get("searchPreferences", {}).get("city") or "San Francisco",
+            "state": state.get("searchPreferences", {}).get("state") or "CA",
+            "compMin": coerce_int(state.get("searchPreferences", {}).get("compMin"), 190000),
+            "compMax": coerce_int(state.get("searchPreferences", {}).get("compMax"), 220000),
+            "resultLimit": coerce_int(state.get("searchPreferences", {}).get("resultLimit"), 50),
+        },
+    )
+    state["criteria"] = search_preferences_to_criteria(state["searchPreferences"], existing_sources)
+
+    for digest in state.get("digestsByDate", {}).values():
+        normalized_jobs = []
+        for index, job in enumerate(digest.get("jobs", []), start=1):
+            normalized_jobs.append(normalize_job(job, index))
+        digest["jobs"] = normalized_jobs
+    return state
+
+
+def merge_job_history(state: dict, date_value: str, jobs: list[dict]) -> list[dict]:
+    previous_jobs = {}
+    seen_any = set()
+    shown_yesterday = set()
+    for digest_date, digest in sorted(state.get("digestsByDate", {}).items()):
+        if digest_date > date_value:
+            continue
+        for job in digest.get("jobs", []):
+            key = job_key(job)
+            previous_jobs[key] = job
+            if digest_date < date_value:
+                seen_any.add(key)
+            if digest_date == yesterday_key_for(date_value):
+                shown_yesterday.add(key)
+
+    merged_jobs = []
+    for job in jobs:
+        key = job_key(job)
+        previous = previous_jobs.get(key, {})
+        job["applied"] = bool(previous.get("applied", job.get("applied", False)))
+        job["notInterested"] = bool(previous.get("notInterested", job.get("notInterested", False)))
+        job["shortlisted"] = bool(previous.get("shortlisted", job.get("shortlisted", False)))
+        job["shownYesterday"] = key in shown_yesterday
+        job["seenBefore"] = key in seen_any
+        job["isNewToday"] = not job["shownYesterday"] and not job["seenBefore"]
+        merged_jobs.append(job)
+    return merged_jobs
+
+
+def normalize_import_payload(payload: dict, state: dict | None = None) -> dict:
+    state = state or create_seed_state()
+    existing_sources = state.get("criteria", {}).get("sources", [])
+    search_preferences = normalize_search_preferences(
+        payload.get("searchPreferences"),
+        state.get("searchPreferences") or default_search_preferences(),
+    )
+    criteria_payload = payload.get("criteria", {})
+    if criteria_payload:
+        if "location" in criteria_payload and "," in str(criteria_payload.get("location", "")):
+            city, state_value = [part.strip() for part in str(criteria_payload["location"]).split(",", 1)]
+            search_preferences["city"] = city or search_preferences["city"]
+            search_preferences["state"] = state_value or search_preferences["state"]
+        salary_string = str(criteria_payload.get("salary", "")).replace("$", "").replace(",", "")
+        if "-" in salary_string:
+            low, high = salary_string.split("-", 1)
+            search_preferences["compMin"] = coerce_int(low, search_preferences["compMin"])
+            search_preferences["compMax"] = coerce_int(high, search_preferences["compMax"])
+
     date_value = str(payload.get("date") or today_key()).strip() or today_key()
     jobs = payload.get("jobs", [])
-    if not isinstance(jobs, list) or not jobs:
-        raise ValueError("At least one job is required")
+    if not isinstance(jobs, list):
+        raise ValueError("Jobs must be a list")
 
     normalized_jobs = []
     for index, job in enumerate(jobs, start=1):
@@ -298,29 +438,34 @@ def normalize_import_payload(payload: dict) -> dict:
         ):
             normalized_jobs.append(normalized_job)
 
-    if not normalized_jobs:
-        raise ValueError("No valid jobs were provided")
-
+    normalized_jobs = merge_job_history(state, date_value, normalized_jobs)
+    summary = str(payload.get("summary", "")).strip() or (
+        f"Up to {search_preferences['resultLimit']} {search_preferences['roleName']} roles in "
+        f"{search_preferences['city']}, {search_preferences['state']}."
+    )
+    criteria_sources = coerce_string_list(criteria_payload.get("sources")) or existing_sources
     return {
         "date": date_value,
-        "criteria": {
-            "location": str(criteria.get("location", "San Francisco Bay Area")).strip()
-            or "San Francisco Bay Area",
-            "salary": str(criteria.get("salary", "$190,000-$220,000")).strip()
-            or "$190,000-$220,000",
-            "industries": coerce_string_list(criteria.get("industries"))
-            or ["Fintech", "Marketplaces"],
-            "sources": coerce_string_list(criteria.get("sources"))
-            or ["Company career pages", "LinkedIn", "Reputable job boards"],
-            "ranking": str(
-                criteria.get("ranking", "Public companies first, then private/startups")
-            ).strip()
-            or "Public companies first, then private/startups",
-        },
-        "summary": str(payload.get("summary", "")).strip()
-        or "Imported digest with public companies ranked ahead of private companies and startups.",
+        "searchPreferences": search_preferences,
+        "criteria": search_preferences_to_criteria(search_preferences, criteria_sources),
+        "summary": summary,
         "jobs": normalized_jobs,
     }
+
+
+def import_digest_payload(payload: dict) -> dict:
+    state = load_state()
+    normalized = normalize_import_payload(payload, state)
+    state["searchPreferences"] = normalized["searchPreferences"]
+    state["criteria"] = normalized["criteria"]
+    state.setdefault("digestsByDate", {})[normalized["date"]] = {
+        "generatedAt": utc_now_iso(),
+        "summary": normalized["summary"],
+        "jobs": normalized["jobs"],
+    }
+    state["lastUpdatedAt"] = utc_now_iso()
+    save_state(state)
+    return normalized
 
 
 def resolve_data_dir() -> Path:
@@ -340,7 +485,6 @@ def resolve_data_dir() -> Path:
             return candidate
         except OSError:
             continue
-
     raise RuntimeError("No writable data directory available")
 
 
@@ -362,15 +506,13 @@ def load_state() -> dict:
         save_state(state)
         return state
 
-    if "digestsByDate" not in state:
-        state = create_seed_state()
-        save_state(state)
-        return state
-
-    digests = state.setdefault("digestsByDate", {})
-    if today_key() not in digests:
-        seed = create_seed_state()
-        digests[today_key()] = seed["digestsByDate"][today_key()]
+    state = ensure_state_shape(state)
+    if today_key() not in state.get("digestsByDate", {}):
+        state["digestsByDate"][today_key()] = {
+            "generatedAt": utc_now_iso(),
+            "summary": f"No new digest imported yet for {today_key()}.",
+            "jobs": [],
+        }
         state["lastUpdatedAt"] = utc_now_iso()
         save_state(state)
     return state
@@ -392,6 +534,9 @@ class AppHandler(SimpleHTTPRequestHandler):
         if self.path.startswith("/api/jobs/"):
             self.handle_update_job()
             return
+        if self.path == "/api/search-preferences":
+            self.handle_update_search_preferences()
+            return
         self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
@@ -403,21 +548,23 @@ class AppHandler(SimpleHTTPRequestHandler):
     def handle_import_digest(self) -> None:
         payload = self.read_json()
         try:
-            normalized = normalize_import_payload(payload)
+            normalized = import_digest_payload(payload)
         except ValueError as error:
             self.send_error(HTTPStatus.BAD_REQUEST, str(error))
             return
+        self.send_json({"ok": True, "date": normalized["date"], "jobCount": len(normalized["jobs"])})
 
+    def handle_update_search_preferences(self) -> None:
+        payload = self.read_json()
         state = load_state()
-        state["criteria"] = normalized["criteria"]
-        state.setdefault("digestsByDate", {})[normalized["date"]] = {
-            "generatedAt": utc_now_iso(),
-            "summary": normalized["summary"],
-            "jobs": normalized["jobs"],
-        }
+        state["searchPreferences"] = normalize_search_preferences(payload, state.get("searchPreferences"))
+        state["criteria"] = search_preferences_to_criteria(
+            state["searchPreferences"],
+            state.get("criteria", {}).get("sources", []),
+        )
         state["lastUpdatedAt"] = utc_now_iso()
         save_state(state)
-        self.send_json({"ok": True, "date": normalized["date"], "jobCount": len(normalized["jobs"])})
+        self.send_json({"ok": True, "searchPreferences": state["searchPreferences"]})
 
     def handle_update_job(self) -> None:
         date_value, job_id = self.parse_job_path(require_job_id=True)
@@ -429,15 +576,23 @@ class AppHandler(SimpleHTTPRequestHandler):
             return
 
         for job in digest.get("jobs", []):
-            if job["id"] == job_id:
-                if "shortlisted" in payload:
-                    job["shortlisted"] = bool(payload["shortlisted"])
-                if "applied" in payload:
-                    job["applied"] = bool(payload["applied"])
-                state["lastUpdatedAt"] = utc_now_iso()
-                save_state(state)
-                self.send_json({"ok": True})
-                return
+            if job["id"] != job_id:
+                continue
+            if "shortlisted" in payload:
+                job["shortlisted"] = bool(payload["shortlisted"])
+            if "applied" in payload:
+                job["applied"] = bool(payload["applied"])
+                if job["applied"]:
+                    job["notInterested"] = False
+            if "notInterested" in payload:
+                job["notInterested"] = bool(payload["notInterested"])
+                if job["notInterested"]:
+                    job["applied"] = False
+                    job["shortlisted"] = False
+            state["lastUpdatedAt"] = utc_now_iso()
+            save_state(state)
+            self.send_json({"ok": True})
+            return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Job not found")
 
@@ -446,13 +601,12 @@ class AppHandler(SimpleHTTPRequestHandler):
         if len(pieces) < 3:
             self.send_error(HTTPStatus.BAD_REQUEST, "Invalid job path")
             raise ValueError("invalid job path")
-
         date_value = pieces[2]
-        job_id = pieces[3] if len(pieces) > 3 else None
-        if require_job_id and not job_id:
+        task_id = pieces[3] if len(pieces) > 3 else None
+        if require_job_id and not task_id:
             self.send_error(HTTPStatus.BAD_REQUEST, "Missing job id")
             raise ValueError("missing job id")
-        return date_value, job_id
+        return date_value, task_id
 
     def read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))

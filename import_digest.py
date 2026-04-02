@@ -18,17 +18,7 @@ def load_payload() -> dict:
 
 
 def import_payload_to_state(payload: dict) -> dict:
-    normalized = server.normalize_import_payload(payload)
-    state = server.load_state()
-    state["criteria"] = normalized["criteria"]
-    state.setdefault("digestsByDate", {})[normalized["date"]] = {
-        "generatedAt": server.utc_now_iso(),
-        "summary": normalized["summary"],
-        "jobs": normalized["jobs"],
-    }
-    state["lastUpdatedAt"] = server.utc_now_iso()
-    server.save_state(state)
-    return normalized
+    return server.import_digest_payload(payload)
 
 
 def main() -> int:
