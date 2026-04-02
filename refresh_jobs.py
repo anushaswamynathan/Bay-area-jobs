@@ -33,6 +33,7 @@ import server
 BASE_DIR = Path(__file__).resolve().parent
 SOURCE_CATALOG_PATH = BASE_DIR / "data" / "source_catalog.json"
 GENERATED_DIGEST_PATH = BASE_DIR / "data" / "generated_digest.json"
+GENERATED_REPORT_PATH = BASE_DIR / "data" / "refresh_report.json"
 REQUEST_TIMEOUT_SECONDS = 20
 DETAIL_FETCH_TIMEOUT_SECONDS = 12
 USER_AGENT = (
@@ -150,6 +151,21 @@ class TextExtractor(HTMLParser):
         return " ".join(self.parts)
 
 
+def build_title_keywords(role_name: str, fallback_keywords: list[str]) -> list[str]:
+    normalized_role = " ".join(role_name.lower().split())
+    keywords = [normalized_role] if normalized_role else []
+    default_keywords = [" ".join(keyword.lower().split()) for keyword in fallback_keywords]
+
+    if normalized_role in {"", "product manager"}:
+        keywords.extend(default_keywords)
+
+    seen = []
+    for keyword in keywords:
+        if keyword and keyword not in seen:
+            seen.append(keyword)
+    return seen
+
+
 def load_source_catalog() -> tuple[Criteria, list[dict]]:
     payload = json.loads(SOURCE_CATALOG_PATH.read_text())
     criteria = payload["criteria"]
@@ -163,7 +179,7 @@ def load_source_catalog() -> tuple[Criteria, list[dict]]:
             role_name=role_name,
             city=city,
             state=state_name,
-            title_keywords=[role_name.lower(), *[item.lower() for item in criteria.get("titleKeywords", [])]],
+            title_keywords=build_title_keywords(role_name, criteria.get("titleKeywords", [])),
             preferred_industries=[item.lower() for item in criteria["preferredIndustries"]],
             bay_area_keywords=location_keywords,
             salary_min=int(search_preferences.get("compMin", criteria["salaryMin"])),
@@ -343,48 +359,50 @@ def collect_job_text(title: str, description: str, salary: str, benefits: list[s
     return " ".join([title, description, salary, location, *benefits]).strip()
 
 
-def should_keep_job(job: dict, criteria: Criteria) -> bool:
+def should_keep_job(job: dict, criteria: Criteria) -> tuple[bool, str]:
     if not matches_title(job["title"], criteria):
-        return False
+        return False, "title_mismatch"
     if not matches_location(job["location"], criteria):
-        return False
+        return False, "location_mismatch"
     if not server.is_open_application_status(job["applicationStatus"]):
-        return False
+        return False, "closed"
 
     band_fit, overlaps = salary_band_fit(job["salaryMin"], job["salaryMax"], criteria)
     job["salaryBandFit"] = band_fit
     if not overlaps:
-        return False
+        return False, "salary_out_of_range"
 
     if len(job["benefits"]) < criteria.min_benefits_count:
-        return False
+        return False, "missing_benefits"
 
     if job["equityStatus"] == "Unconfirmed" and job["companyStatus"] != "public":
-        return False
+        return False, "missing_equity"
 
-    return True
+    return True, "kept"
 
 
-def job_matches_fallback(job: dict, criteria: Criteria) -> bool:
+def job_matches_fallback(job: dict, criteria: Criteria) -> tuple[bool, str]:
     if not matches_title(job["title"], criteria):
-        return False
+        return False, "title_mismatch"
     if not matches_location(job["location"], criteria):
-        return False
+        return False, "location_mismatch"
     if not server.is_open_application_status(job["applicationStatus"]):
-        return False
+        return False, "closed"
 
     low = job["salaryMin"]
     high = job["salaryMax"]
     if low is None or high is None:
-      return False
+        return False, "missing_salary"
     overlaps = high >= criteria.fallback_salary_min and low <= criteria.fallback_salary_max
     if not overlaps:
-        return False
+        return False, "fallback_salary_out_of_range"
 
     if job["companyStatus"] == "public":
-        return True
+        return True, "fallback_kept"
 
-    return bool(job["benefits"])
+    if bool(job["benefits"]):
+        return True, "fallback_kept"
+    return False, "missing_benefits"
 
 
 def dedupe_jobs(jobs: list[dict]) -> list[dict]:
@@ -421,7 +439,7 @@ def job_priority(job: dict) -> tuple:
     )
 
 
-def normalize_job_record(job: dict, source: dict, criteria: Criteria) -> dict | None:
+def normalize_job_record(job: dict, source: dict, criteria: Criteria) -> tuple[dict | None, str]:
     company = job.get("company") or source.get("company") or "Unknown company"
     metadata_source = {
         "companyStatus": job.get("companyStatus") or source.get("companyStatus"),
@@ -480,11 +498,12 @@ def normalize_job_record(job: dict, source: dict, criteria: Criteria) -> dict | 
         "shortlisted": False,
     }
 
-    if not should_keep_job(normalized, criteria):
-        return None
+    keep, reason = should_keep_job(normalized, criteria)
+    if not keep:
+        return None, reason
 
     normalized["salary"] = normalized["salary"] or ""
-    return normalized
+    return normalized, "kept"
 
 
 def fetch_greenhouse_jobs(session: requests.Session, source: dict) -> list[dict]:
@@ -696,17 +715,31 @@ def fetch_source_jobs(session: requests.Session, source: dict) -> list[dict]:
     return []
 
 
-def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sources: list[dict]) -> dict:
+def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sources: list[dict]) -> tuple[dict, dict]:
     normalized_jobs = []
     fallback_jobs = []
+    diagnostics = {"sources": {}, "summary": {}}
     for source in sources:
         if not source.get("enabled", True):
             continue
+        source_name = source["name"]
+        source_diag = diagnostics["sources"].setdefault(
+            source_name,
+            {
+                "fetched": len(jobs_by_source.get(source_name, [])),
+                "strict_kept": 0,
+                "fallback_kept": 0,
+                "duplicates_removed": 0,
+                "rejections": {},
+            },
+        )
         for job in jobs_by_source.get(source["name"], []):
-            normalized = normalize_job_record(job, source, criteria)
+            normalized, reason = normalize_job_record(job, source, criteria)
             if normalized:
                 normalized_jobs.append(normalized)
+                source_diag["strict_kept"] += 1
                 continue
+            source_diag["rejections"][reason] = source_diag["rejections"].get(reason, 0) + 1
 
             company = job.get("company") or source.get("company") or "Unknown company"
             metadata_source = {
@@ -757,8 +790,12 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
                 "matchTier": "fallback",
                 "shortlisted": False,
             }
-            if job_matches_fallback(fallback_job, criteria):
+            fallback_keep, fallback_reason = job_matches_fallback(fallback_job, criteria)
+            if fallback_keep:
                 fallback_jobs.append(fallback_job)
+                source_diag["fallback_kept"] += 1
+            else:
+                source_diag["rejections"][fallback_reason] = source_diag["rejections"].get(fallback_reason, 0) + 1
 
     deduped_jobs = dedupe_jobs(normalized_jobs)
     deduped_fallback_jobs = dedupe_jobs(fallback_jobs)
@@ -776,8 +813,17 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
         combined_jobs.extend(backfill[: criteria.target_jobs_per_day - len(combined_jobs)])
 
     limited_jobs = combined_jobs[: criteria.max_jobs_per_day]
+    strict_count = len(deduped_jobs)
+    fallback_count = max(0, len(limited_jobs) - strict_count)
+    diagnostics["summary"] = {
+        "strict_matches": strict_count,
+        "fallback_matches": fallback_count,
+        "final_jobs": len(limited_jobs),
+        "target_jobs_per_day": criteria.target_jobs_per_day,
+        "max_jobs_per_day": criteria.max_jobs_per_day,
+    }
     criteria_sources = [source["name"] for source in sources if source.get("enabled", True)]
-    return {
+    digest = {
         "date": server.today_key(),
         "summary": (
             f"Daily digest for {criteria.role_name} roles in {criteria.city}, {criteria.state}. "
@@ -800,6 +846,20 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
         },
         "jobs": limited_jobs,
     }
+    strict_keys = {(job["company"].lower(), job["title"].lower(), job["link"]) for job in deduped_jobs}
+    fallback_keys = {(job["company"].lower(), job["title"].lower(), job["link"]) for job in deduped_fallback_jobs}
+    for source_name, source_diag in diagnostics["sources"].items():
+        fetched_jobs = jobs_by_source.get(source_name, [])
+        source_diag["duplicates_removed"] = max(
+            0,
+            (source_diag["strict_kept"] + source_diag["fallback_kept"]) - len(
+                {
+                    (job.get("company", "").lower(), job.get("title", "").lower(), job.get("link", ""))
+                    for job in fetched_jobs
+                }
+            ),
+        )
+    return digest, diagnostics
 
 
 def fetch_all_jobs(criteria: Criteria, sources: list[dict]) -> tuple[dict, dict]:
@@ -836,8 +896,25 @@ def main() -> int:
         return 1
     criteria, sources = load_source_catalog()
     jobs_by_source, source_report = fetch_all_jobs(criteria, sources)
-    digest = build_digest(jobs_by_source, criteria, sources)
+    digest, diagnostics = build_digest(jobs_by_source, criteria, sources)
     GENERATED_DIGEST_PATH.write_text(json.dumps(digest, indent=2))
+    GENERATED_REPORT_PATH.write_text(
+        json.dumps(
+            {
+                "criteria": {
+                    "roleName": criteria.role_name,
+                    "city": criteria.city,
+                    "state": criteria.state,
+                    "salaryMin": criteria.salary_min,
+                    "salaryMax": criteria.salary_max,
+                    "resultLimit": criteria.max_jobs_per_day,
+                },
+                "fetch": source_report,
+                "analysis": diagnostics,
+            },
+            indent=2,
+        )
+    )
     import_digest.import_payload_to_state(digest)
 
     print(
@@ -845,8 +922,10 @@ def main() -> int:
             {
                 "ok": True,
                 "output": str(GENERATED_DIGEST_PATH),
+                "report": str(GENERATED_REPORT_PATH),
                 "jobs": len(digest["jobs"]),
                 "sources": source_report,
+                "analysis": diagnostics["summary"],
             },
             indent=2,
         )

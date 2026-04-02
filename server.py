@@ -514,6 +514,27 @@ def merge_existing_flags(existing_jobs: list[dict], incoming_jobs: list[dict]) -
     return merged_jobs
 
 
+def should_bootstrap_bundled_digest(state: dict, bundled_date: str, bundled_jobs: list[dict]) -> bool:
+    current_dates = sorted(state.get("digestsByDate", {}))
+    latest_current_date = current_dates[-1] if current_dates else ""
+    if bundled_date > latest_current_date:
+        return True
+
+    current_digest = state.get("digestsByDate", {}).get(bundled_date, {})
+    current_jobs = current_digest.get("jobs", [])
+    current_role = (
+        str(state.get("searchPreferences", {}).get("roleName", "")).strip().lower()
+    )
+    default_role = default_search_preferences()["roleName"].lower()
+
+    looks_like_initial_seed = (
+        latest_current_date == bundled_date
+        and len(current_jobs) <= 6
+        and current_role in {"", default_role}
+    )
+    return looks_like_initial_seed and len(bundled_jobs) > len(current_jobs)
+
+
 def maybe_upgrade_from_bundled_digest(state: dict) -> dict:
     bundled_digest = load_json_file(BASE_DIR / "data" / "generated_digest.json")
     if not bundled_digest:
@@ -526,12 +547,8 @@ def maybe_upgrade_from_bundled_digest(state: dict) -> dict:
 
     current_digest = state.get("digestsByDate", {}).get(bundled_date, {})
     current_jobs = current_digest.get("jobs", [])
-    current_dates = sorted(state.get("digestsByDate", {}))
-    latest_current_date = current_dates[-1] if current_dates else ""
 
-    if bundled_date < latest_current_date:
-        return state
-    if bundled_date == latest_current_date and len(bundled_jobs) <= len(current_jobs):
+    if not should_bootstrap_bundled_digest(state, bundled_date, bundled_jobs):
         return state
 
     state["searchPreferences"] = normalize_search_preferences(
