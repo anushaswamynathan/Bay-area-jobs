@@ -470,7 +470,7 @@ def import_digest_payload(payload: dict) -> dict:
 
 def resolve_data_dir() -> Path:
     candidates = []
-    configured = os.getenv("NIGHTLY_TODOS_DATA_DIR")
+    configured = os.getenv("BAY_PM_JOBS_DATA_DIR", os.getenv("NIGHTLY_TODOS_DATA_DIR"))
     if configured:
         candidates.append(Path(configured).expanduser())
     candidates.append(BASE_DIR / "data")
@@ -492,6 +492,67 @@ DATA_DIR = resolve_data_dir()
 STATE_PATH = DATA_DIR / "state.json"
 
 
+def load_json_file(path: Path) -> Optional[dict]:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return None
+
+
+def merge_existing_flags(existing_jobs: list[dict], incoming_jobs: list[dict]) -> list[dict]:
+    existing_by_id = {job.get("id"): job for job in existing_jobs if job.get("id")}
+    merged_jobs = []
+    for job in incoming_jobs:
+        existing = existing_by_id.get(job.get("id"), {})
+        merged = dict(job)
+        merged["applied"] = bool(existing.get("applied", job.get("applied", False)))
+        merged["notInterested"] = bool(existing.get("notInterested", job.get("notInterested", False)))
+        merged["shortlisted"] = bool(existing.get("shortlisted", job.get("shortlisted", False)))
+        merged_jobs.append(merged)
+    return merged_jobs
+
+
+def maybe_upgrade_from_bundled_state(state: dict) -> dict:
+    bundled_path = BASE_DIR / "data" / "state.json"
+    if bundled_path.resolve() == STATE_PATH.resolve():
+        return state
+
+    bundled_state = load_json_file(bundled_path)
+    if not bundled_state:
+        return state
+
+    bundled_state = ensure_state_shape(bundled_state)
+    bundled_dates = sorted(bundled_state.get("digestsByDate", {}))
+    if not bundled_dates:
+        return state
+
+    latest_bundled_date = bundled_dates[-1]
+    bundled_digest = bundled_state["digestsByDate"].get(latest_bundled_date, {})
+    bundled_jobs = bundled_digest.get("jobs", [])
+    current_digest = state.get("digestsByDate", {}).get(latest_bundled_date, {})
+    current_jobs = current_digest.get("jobs", [])
+    current_dates = sorted(state.get("digestsByDate", {}))
+    latest_current_date = current_dates[-1] if current_dates else ""
+
+    if latest_bundled_date < latest_current_date:
+        return state
+    if latest_bundled_date == latest_current_date and len(bundled_jobs) <= len(current_jobs):
+        return state
+
+    state["searchPreferences"] = bundled_state.get("searchPreferences", state.get("searchPreferences"))
+    state["criteria"] = bundled_state.get("criteria", state.get("criteria"))
+    state.setdefault("digestsByDate", {})[latest_bundled_date] = {
+        "generatedAt": bundled_digest.get("generatedAt", utc_now_iso()),
+        "summary": bundled_digest.get("summary", current_digest.get("summary", "")),
+        "jobs": merge_existing_flags(current_jobs, bundled_jobs),
+    }
+    state["lastUpdatedAt"] = utc_now_iso()
+    save_state(state)
+    return state
+
+
 def load_state() -> dict:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not STATE_PATH.exists():
@@ -507,6 +568,7 @@ def load_state() -> dict:
         return state
 
     state = ensure_state_shape(state)
+    state = maybe_upgrade_from_bundled_state(state)
     if today_key() not in state.get("digestsByDate", {}):
         state["digestsByDate"][today_key()] = {
             "generatedAt": utc_now_iso(),
