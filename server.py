@@ -762,7 +762,37 @@ def run_refresh_job() -> None:
         import refresh_jobs
         refresh_jobs.require_refresh_dependencies()
         criteria, sources = refresh_jobs.load_source_catalog()
-        jobs_by_source, source_report = refresh_jobs.fetch_all_jobs(criteria, sources)
+        preview_source_list = refresh_jobs.preview_sources(sources)
+        preview_jobs_by_source, preview_source_report = refresh_jobs.fetch_all_jobs(
+            criteria,
+            preview_source_list,
+            use_cache=True,
+            max_workers=refresh_jobs.PREVIEW_MAX_WORKERS,
+        )
+        preview_digest, preview_diagnostics = refresh_jobs.build_digest(
+            preview_jobs_by_source,
+            criteria,
+            preview_source_list,
+        )
+        if preview_digest.get("jobs"):
+            import_digest_payload(preview_digest)
+            with REFRESH_LOCK:
+                REFRESH_STATUS.update(
+                    {
+                        "state": "running",
+                        "message": "Preview loaded. Enriching more sources...",
+                        "jobCount": len(preview_digest["jobs"]),
+                        "date": preview_digest["date"],
+                        "error": "",
+                    }
+                )
+
+        jobs_by_source, source_report = refresh_jobs.fetch_all_jobs(
+            criteria,
+            sources,
+            use_cache=True,
+            max_workers=refresh_jobs.FULL_MAX_WORKERS,
+        )
         digest, diagnostics = refresh_jobs.build_digest(jobs_by_source, criteria, sources)
         refresh_jobs.GENERATED_DIGEST_PATH.write_text(json.dumps(digest, indent=2))
         refresh_jobs.GENERATED_REPORT_PATH.write_text(
@@ -776,7 +806,9 @@ def run_refresh_job() -> None:
                         "salaryMax": criteria.salary_max,
                         "resultLimit": criteria.max_jobs_per_day,
                     },
+                    "previewFetch": preview_source_report,
                     "fetch": source_report,
+                    "previewAnalysis": preview_diagnostics,
                     "analysis": diagnostics,
                 },
                 indent=2,

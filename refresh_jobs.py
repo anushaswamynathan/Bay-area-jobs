@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse, urlunparse
+import hashlib
+import time
 
 DEPENDENCY_ERROR = ""
 
@@ -34,8 +37,12 @@ BASE_DIR = Path(__file__).resolve().parent
 SOURCE_CATALOG_PATH = BASE_DIR / "data" / "source_catalog.json"
 GENERATED_DIGEST_PATH = BASE_DIR / "data" / "generated_digest.json"
 GENERATED_REPORT_PATH = BASE_DIR / "data" / "refresh_report.json"
-REQUEST_TIMEOUT_SECONDS = 20
-DETAIL_FETCH_TIMEOUT_SECONDS = 12
+SOURCE_CACHE_PATH = BASE_DIR / "data" / "source_cache.json"
+REQUEST_TIMEOUT_SECONDS = 8
+DETAIL_FETCH_TIMEOUT_SECONDS = 5
+SOURCE_CACHE_TTL_SECONDS = 6 * 60 * 60
+PREVIEW_MAX_WORKERS = 10
+FULL_MAX_WORKERS = 12
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
@@ -243,6 +250,65 @@ def personalize_sources(sources: list[dict], role_name: str, city: str, state_na
             ]
         personalized.append(updated)
     return personalized
+
+
+def source_cache_key(source: dict) -> str:
+    payload = json.dumps(
+        {
+            "name": source.get("name"),
+            "type": source.get("type"),
+            "listingUrls": source.get("listingUrls", []),
+            "boards": source.get("boards", []),
+            "sites": source.get("sites", []),
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def load_source_cache() -> dict:
+    if not SOURCE_CACHE_PATH.exists():
+        return {}
+    try:
+        return json.loads(SOURCE_CACHE_PATH.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_source_cache(cache: dict) -> None:
+    SOURCE_CACHE_PATH.write_text(json.dumps(cache, indent=2))
+
+
+def get_cached_source_jobs(cache: dict, source: dict) -> list[dict] | None:
+    key = source_cache_key(source)
+    entry = cache.get(key)
+    if not entry:
+        return None
+    fetched_at = float(entry.get("fetchedAt", 0))
+    if time.time() - fetched_at > SOURCE_CACHE_TTL_SECONDS:
+        return None
+    return entry.get("jobs", [])
+
+
+def set_cached_source_jobs(cache: dict, source: dict, jobs: list[dict]) -> None:
+    cache[source_cache_key(source)] = {
+        "fetchedAt": time.time(),
+        "jobs": jobs,
+    }
+
+
+def preview_sources(sources: list[dict]) -> list[dict]:
+    prioritized = []
+    for source in sources:
+        if not source.get("enabled", True):
+            continue
+        source_copy = dict(source)
+        if source_copy.get("listingUrls"):
+            source_copy["listingUrls"] = source_copy["listingUrls"][:2]
+        if source_copy.get("maxDetailPages"):
+            source_copy["maxDetailPages"] = min(int(source_copy["maxDetailPages"]), 6)
+        prioritized.append(source_copy)
+    return prioritized
 
 
 def load_source_catalog() -> tuple[Criteria, list[dict]]:
@@ -784,7 +850,8 @@ def fetch_html_search_jobs(session: requests.Session, source: dict) -> list[dict
     return jobs
 
 
-def fetch_source_jobs(session: requests.Session, source: dict) -> list[dict]:
+def fetch_source_jobs(source: dict) -> list[dict]:
+    session = requests_session()
     source_type = source["type"]
     if source_type == "greenhouse":
         return fetch_greenhouse_jobs(session, source)
@@ -942,31 +1009,65 @@ def build_digest(jobs_by_source: dict[str, list[dict]], criteria: Criteria, sour
     return digest, diagnostics
 
 
-def fetch_all_jobs(criteria: Criteria, sources: list[dict]) -> tuple[dict, dict]:
-    session = requests_session()
+def fetch_all_jobs(
+    criteria: Criteria,
+    sources: list[dict],
+    *,
+    use_cache: bool = True,
+    max_workers: int = FULL_MAX_WORKERS,
+) -> tuple[dict, dict]:
     collected = {}
     source_report = {}
+    cache = load_source_cache() if use_cache else {}
     enabled_sources = [source for source in sources if source.get("enabled", True)]
     total_sources = len(enabled_sources)
+    pending = []
     for index, source in enumerate(enabled_sources, start=1):
-        print(f"[{index}/{total_sources}] Fetching {source['name']}...", flush=True)
-        if not source.get("enabled", True):
+        cached_jobs = get_cached_source_jobs(cache, source) if use_cache else None
+        if cached_jobs is not None:
+            collected[source["name"]] = cached_jobs
+            source_report[source["name"]] = {"status": "cached", "fetched": len(cached_jobs)}
+            print(
+                f"[{index}/{total_sources}] {source['name']}: cache hit with {len(cached_jobs)} candidate jobs",
+                flush=True,
+            )
             continue
-        try:
-            jobs = fetch_source_jobs(session, source)
-            collected[source["name"]] = jobs
-            source_report[source["name"]] = {"status": "ok", "fetched": len(jobs)}
-            print(
-                f"[{index}/{total_sources}] {source['name']}: fetched {len(jobs)} candidate jobs",
-                flush=True,
-            )
-        except requests.RequestException as error:
-            collected[source["name"]] = []
-            source_report[source["name"]] = {"status": "error", "error": str(error)}
-            print(
-                f"[{index}/{total_sources}] {source['name']}: error {error}",
-                flush=True,
-            )
+        print(f"[{index}/{total_sources}] Fetching {source['name']}...", flush=True)
+        pending.append((index, source))
+
+    if pending:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_map = {
+                executor.submit(fetch_source_jobs, source): (index, source)
+                for index, source in pending
+            }
+            for future in as_completed(future_map):
+                index, source = future_map[future]
+                try:
+                    jobs = future.result()
+                    collected[source["name"]] = jobs
+                    source_report[source["name"]] = {"status": "ok", "fetched": len(jobs)}
+                    set_cached_source_jobs(cache, source, jobs)
+                    print(
+                        f"[{index}/{total_sources}] {source['name']}: fetched {len(jobs)} candidate jobs",
+                        flush=True,
+                    )
+                except requests.RequestException as error:
+                    collected[source["name"]] = []
+                    source_report[source["name"]] = {"status": "error", "error": str(error)}
+                    print(
+                        f"[{index}/{total_sources}] {source['name']}: error {error}",
+                        flush=True,
+                    )
+                except Exception as error:
+                    collected[source["name"]] = []
+                    source_report[source["name"]] = {"status": "error", "error": str(error)}
+                    print(
+                        f"[{index}/{total_sources}] {source['name']}: error {error}",
+                        flush=True,
+                    )
+    if use_cache:
+        save_source_cache(cache)
     return collected, source_report
 
 

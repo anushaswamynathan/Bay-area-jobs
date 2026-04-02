@@ -529,6 +529,9 @@ function syncRefreshPolling() {
   state.refreshPollTimer = window.setInterval(async () => {
     await refreshRefreshStatus();
     if (state.refreshStatus?.state === "running") {
+      await refreshState();
+      state.selectedDateKey = getLatestDigestDate();
+      state.visibleMonth = startOfMonth(new Date(`${state.selectedDateKey}T12:00:00`));
       render();
       return;
     }
