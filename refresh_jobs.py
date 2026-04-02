@@ -10,7 +10,7 @@ from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlparse, urlunparse
 
 DEPENDENCY_ERROR = ""
 
@@ -166,6 +166,85 @@ def build_title_keywords(role_name: str, fallback_keywords: list[str]) -> list[s
     return seen
 
 
+def normalize_role_slug(role_name: str) -> str:
+    return "-".join(part for part in re.split(r"[^a-z0-9]+", role_name.lower()) if part)
+
+
+def normalize_city_slug(city: str) -> str:
+    return "-".join(part for part in re.split(r"[^a-z0-9]+", city.lower()) if part)
+
+
+def personalize_listing_url(source_name: str, url: str, role_name: str, city: str, state_name: str) -> str:
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    role_query = role_name.strip()
+    location_query = f"{city}, {state_name}".strip(", ")
+    location_with_country = f"{city}, {state_name}, United States".strip(", ")
+    updated = False
+
+    replacements = {
+        "keywords": role_query,
+        "q": role_query,
+        "query": role_query,
+        "search": role_query,
+        "_sf_s": role_query,
+        "base_query": role_query,
+    }
+    for key, value in replacements.items():
+        if key in query:
+            query[key] = [value]
+            updated = True
+
+    location_replacements = {
+        "location": location_with_country,
+        "l": location_query,
+    }
+    for key, value in location_replacements.items():
+        if key in query:
+            query[key] = [value]
+            updated = True
+
+    if source_name == "Affirm careers":
+        if role_query.lower() == "product manager":
+            query["department"] = ["Product"]
+        else:
+            query.pop("department", None)
+        updated = True
+
+    if "glassdoor.com" in parsed.netloc.lower():
+        return (
+            "https://www.glassdoor.com/Job/jobs.htm?"
+            + urlencode({"sc.keyword": role_query, "locT": "C", "locId": "1147401"})
+        )
+
+    rebuilt = urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+    if updated:
+        return rebuilt
+
+    role_slug = normalize_role_slug(role_query)
+    city_slug = normalize_city_slug(city)
+    fallback = rebuilt
+    fallback = fallback.replace("product%20manager", quote(role_query))
+    fallback = fallback.replace("product+manager", role_query.replace(" ", "+"))
+    fallback = fallback.replace("product-manager", role_slug)
+    fallback = fallback.replace("san-francisco", city_slug)
+    return fallback
+
+
+def personalize_sources(sources: list[dict], role_name: str, city: str, state_name: str) -> list[dict]:
+    personalized = []
+    for source in sources:
+        updated = dict(source)
+        listing_urls = source.get("listingUrls")
+        if listing_urls:
+            updated["listingUrls"] = [
+                personalize_listing_url(source["name"], url, role_name, city, state_name)
+                for url in listing_urls
+            ]
+        personalized.append(updated)
+    return personalized
+
+
 def load_source_catalog() -> tuple[Criteria, list[dict]]:
     payload = json.loads(SOURCE_CATALOG_PATH.read_text())
     criteria = payload["criteria"]
@@ -174,6 +253,7 @@ def load_source_catalog() -> tuple[Criteria, list[dict]]:
     city = search_preferences.get("city", "San Francisco")
     state_name = search_preferences.get("state", "CA")
     location_keywords = [f"{city}".lower(), f"{city}, {state_name}".lower(), state_name.lower()]
+    personalized_sources = personalize_sources(payload["sources"], role_name, city, state_name)
     return (
         Criteria(
             role_name=role_name,
@@ -190,7 +270,7 @@ def load_source_catalog() -> tuple[Criteria, list[dict]]:
             fallback_salary_min=int(min(search_preferences.get("compMin", criteria["salaryMin"]), criteria.get("fallbackSalaryMin", 170000))),
             fallback_salary_max=int(max(search_preferences.get("compMax", criteria["salaryMax"]), criteria.get("fallbackSalaryMax", 240000))),
         ),
-        payload["sources"],
+        personalized_sources,
     )
 
 
