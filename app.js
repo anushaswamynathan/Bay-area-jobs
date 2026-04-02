@@ -40,10 +40,13 @@ const elements = {
   recommendedSection: document.querySelector("#recommended-section"),
   appliedSection: document.querySelector("#applied-section"),
   notInterestedSection: document.querySelector("#not-interested-section"),
-  exactJobList: document.querySelector("#exact-job-list"),
-  overlapJobList: document.querySelector("#overlap-job-list"),
+  recommendedJobList: document.querySelector("#recommended-job-list"),
   appliedJobList: document.querySelector("#applied-job-list"),
   notInterestedJobList: document.querySelector("#not-interested-job-list"),
+  recommendedGroupTitle: document.querySelector("#recommended-group-title"),
+  recommendedGroupCopy: document.querySelector("#recommended-group-copy"),
+  appliedGroupTitle: document.querySelector("#applied-group-title"),
+  notInterestedGroupTitle: document.querySelector("#not-interested-group-title"),
   emptyState: document.querySelector("#empty-state"),
   jobTemplate: document.querySelector("#job-card-template"),
   calendarMonthLabel: document.querySelector("#calendar-month-label"),
@@ -176,9 +179,7 @@ function render() {
   const recommendedJobs = applyViewFilter(allJobs.filter((job) => !job.applied && !job.notInterested));
   const appliedJobs = applyViewFilter(allJobs.filter((job) => job.applied));
   const notInterestedJobs = applyViewFilter(allJobs.filter((job) => job.notInterested));
-  const exactJobs = recommendedJobs.filter((job) => job.salaryBandFit === "exact");
-  const overlapJobs = recommendedJobs.filter((job) => job.salaryBandFit !== "exact");
-  const visibleGroupsCount = exactJobs.length + overlapJobs.length + appliedJobs.length + notInterestedJobs.length;
+  const visibleGroupsCount = recommendedJobs.length + appliedJobs.length + notInterestedJobs.length;
 
   elements.activeDateCaption.textContent = getRelativeDateLabel(state.selectedDateKey);
   elements.todayLabel.textContent = formatDateLabel(state.selectedDateKey);
@@ -192,16 +193,19 @@ function render() {
   renderSearchForm();
   renderFilterState();
   renderUtilityPanels();
-  renderGroups(exactJobs, overlapJobs, appliedJobs, notInterestedJobs);
+  renderGroups(recommendedJobs, appliedJobs, notInterestedJobs);
   renderCalendar();
 }
 
 function renderDynamicText() {
   const prefs = state.searchPreferences;
   const locationLabel = formatLocation(prefs.city, prefs.state);
+  const digest = getSelectedDigest();
+  const jobs = sortJobs(digest?.jobs || []);
+  const recommendedCount = jobs.filter((job) => !job.applied && !job.notInterested).length;
   elements.heroTitle.textContent = `${prefs.roleName || "Product roles"} in ${locationLabel}`;
   elements.heroCopy.textContent = `Tracking up to ${prefs.resultLimit || 50} daily roles with base comp between ${formatCurrency(prefs.compMin)} and ${formatCurrency(prefs.compMax)}.`;
-  elements.resultsTitle.textContent = `${prefs.resultLimit || 50} role digest for ${locationLabel}`;
+  elements.resultsTitle.textContent = `${recommendedCount} recommended roles for ${locationLabel}`;
   document.title = `${prefs.roleName || "Product Manager"} Jobs | ${locationLabel}`;
 }
 
@@ -228,9 +232,8 @@ function renderFilterState() {
   });
 }
 
-function renderGroups(exactJobs, overlapJobs, appliedJobs, notInterestedJobs) {
-  elements.exactJobList.innerHTML = "";
-  elements.overlapJobList.innerHTML = "";
+function renderGroups(recommendedJobs, appliedJobs, notInterestedJobs) {
+  elements.recommendedJobList.innerHTML = "";
   elements.appliedJobList.innerHTML = "";
   elements.notInterestedJobList.innerHTML = "";
 
@@ -238,8 +241,15 @@ function renderGroups(exactJobs, overlapJobs, appliedJobs, notInterestedJobs) {
   elements.appliedSection.hidden = !["all", "applied", "public", "private"].includes(state.activeFilter) && state.activeFilter !== "all";
   elements.notInterestedSection.hidden = !["all", "not-interested", "public", "private"].includes(state.activeFilter) && state.activeFilter !== "all";
 
-  exactJobs.forEach((job) => elements.exactJobList.appendChild(createJobCard(job)));
-  overlapJobs.forEach((job) => elements.overlapJobList.appendChild(createJobCard(job)));
+  const exactCount = recommendedJobs.filter((job) => job.salaryBandFit === "exact").length;
+  const nearCount = recommendedJobs.length - exactCount;
+
+  elements.recommendedGroupTitle.textContent = `Fresh roles to review (${recommendedJobs.length})`;
+  elements.recommendedGroupCopy.textContent = `${exactCount} exact fit${exactCount === 1 ? "" : "s"} and ${nearCount} near match${nearCount === 1 ? "" : "es"}. Applied and not interested jobs are excluded automatically.`;
+  elements.appliedGroupTitle.textContent = `Already submitted (${appliedJobs.length})`;
+  elements.notInterestedGroupTitle.textContent = `Hidden from your recommendations (${notInterestedJobs.length})`;
+
+  recommendedJobs.forEach((job) => elements.recommendedJobList.appendChild(createJobCard(job)));
   appliedJobs.forEach((job) => elements.appliedJobList.appendChild(createJobCard(job)));
   notInterestedJobs.forEach((job) => elements.notInterestedJobList.appendChild(createJobCard(job)));
 

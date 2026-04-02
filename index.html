@@ -106,25 +106,18 @@
           <div class="group-head">
             <div>
               <p class="panel-label">Recommended</p>
-              <h3>Fresh roles to review</h3>
+              <h3 id="recommended-group-title">Fresh roles to review</h3>
             </div>
-            <p class="group-copy">Applied and not interested jobs are excluded from recommendations automatically.</p>
+            <p id="recommended-group-copy" class="group-copy">Applied and not interested jobs are excluded from recommendations automatically.</p>
           </div>
-          <div class="recommendation-subgroup">
-            <p class="subgroup-label">Exact fit</p>
-            <div id="exact-job-list" class="job-list"></div>
-          </div>
-          <div class="recommendation-subgroup">
-            <p class="subgroup-label">Near matches</p>
-            <div id="overlap-job-list" class="job-list"></div>
-          </div>
+          <div id="recommended-job-list" class="job-list"></div>
         </section>
 
         <section id="applied-section" class="job-group">
           <div class="group-head">
             <div>
               <p class="panel-label">Applied</p>
-              <h3>Already submitted</h3>
+              <h3 id="applied-group-title">Already submitted</h3>
             </div>
           </div>
           <div id="applied-job-list" class="job-list"></div>
@@ -134,7 +127,7 @@
           <div class="group-head">
             <div>
               <p class="panel-label">Not Interested</p>
-              <h3>Hidden from your recommendations</h3>
+              <h3 id="not-interested-group-title">Hidden from your recommendations</h3>
             </div>
           </div>
           <div id="not-interested-job-list" class="job-list"></div>
