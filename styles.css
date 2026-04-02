@@ -48,11 +48,12 @@ a {
 }
 
 .hero {
-  display: grid;
-  grid-template-columns: 1.45fr 0.95fr;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 24px;
-  padding: 32px;
-  margin-bottom: 24px;
+  padding: 24px 28px;
+  margin-bottom: 16px;
 }
 
 .eyebrow,
@@ -75,9 +76,9 @@ ul {
 }
 
 h1 {
-  font-size: clamp(2.3rem, 5vw, 4.7rem);
-  line-height: 0.95;
-  max-width: 11ch;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 0.98;
+  max-width: 12ch;
 }
 
 h2 {
@@ -85,25 +86,18 @@ h2 {
 }
 
 .hero-copy {
-  max-width: 58ch;
-  margin-top: 18px;
+  max-width: 34ch;
+  margin-top: 10px;
   color: var(--muted);
-  line-height: 1.65;
-  font-size: 1.05rem;
+  line-height: 1.5;
+  font-size: 0.98rem;
 }
 
-.hero-card,
 .status-card,
 .job-card,
 .calendar-day {
   background: var(--panel-strong);
   border: 1px solid var(--line);
-}
-
-.hero-card {
-  border-radius: 24px;
-  padding: 22px;
-  align-self: stretch;
 }
 
 .criteria-list {
@@ -115,12 +109,22 @@ h2 {
 }
 
 .hero-actions {
-  margin-top: 22px;
+  margin-top: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .panel {
   padding: 24px;
   margin-bottom: 20px;
+}
+
+.jobs-panel {
+  padding: 28px;
+}
+
+.utility-panel {
+  padding-top: 20px;
 }
 
 .panel-status,
@@ -175,6 +179,11 @@ h2 {
   line-height: 1.5;
 }
 
+.panel-status {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
 .secondary-button,
 .text-button,
 .filter-chip,
@@ -224,8 +233,14 @@ h2 {
 }
 
 .filter-chip.is-active,
-.save-button.is-saved {
+.save-button.is-saved,
+.secondary-button.is-active {
   background: rgba(11, 114, 133, 0.16);
+}
+
+.applied-button.is-active {
+  background: rgba(79, 168, 61, 0.18);
+  color: #2f6b22;
 }
 
 button:hover,
@@ -306,12 +321,12 @@ a:hover {
 
 .job-card {
   border-radius: 24px;
-  padding: 20px;
-  box-shadow: 0 18px 36px rgba(20, 33, 61, 0.06);
+  padding: 22px;
+  box-shadow: 0 22px 40px rgba(20, 33, 61, 0.07);
 }
 
 .job-title {
-  font-size: 1.28rem;
+  font-size: 1.42rem;
   margin-top: 10px;
 }
 
@@ -438,7 +453,8 @@ textarea {
 
 @media (max-width: 920px) {
   .hero {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .job-grid {

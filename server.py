@@ -48,6 +48,7 @@ def create_seed_state() -> dict:
             "link": "https://www.uber.com/global/en/careers/list/145353/",
             "fitNote": "Large public company with fintech-adjacent product scope and strong compensation fit.",
             "isNewToday": True,
+            "applied": False,
             "shortlisted": True,
         },
         {
@@ -73,6 +74,7 @@ def create_seed_state() -> dict:
             "link": "https://www.uber.com/careers/list/154261",
             "fitNote": "Strong marketplace role at a public company with direct salary-band alignment.",
             "isNewToday": False,
+            "applied": False,
             "shortlisted": False,
         },
         {
@@ -98,6 +100,7 @@ def create_seed_state() -> dict:
             "link": "https://jobs.ashbyhq.com/airwallex/426c17cb-4343-435d-a03e-c0b4e20b9109",
             "fitNote": "Excellent fintech relevance with compensation that overlaps the target band.",
             "isNewToday": True,
+            "applied": False,
             "shortlisted": True,
         },
         {
@@ -123,6 +126,7 @@ def create_seed_state() -> dict:
             "link": "https://www.linkedin.com/jobs/view/senior-staff-product-manager-at-altruist-4371342447",
             "fitNote": "High-quality fintech comp package, though the top end exceeds the preferred range.",
             "isNewToday": False,
+            "applied": False,
             "shortlisted": False,
         },
         {
@@ -149,6 +153,7 @@ def create_seed_state() -> dict:
             "link": "https://jobs.ashbyhq.com/traba/b00513c3-56b8-4828-929c-2fe9f227b094",
             "fitNote": "Best marketplace startup fit in the current sample set.",
             "isNewToday": True,
+            "applied": False,
             "shortlisted": True,
         },
         {
@@ -174,6 +179,7 @@ def create_seed_state() -> dict:
             "link": "https://jobs.ashbyhq.com/airwallex/458c1e45-697f-4770-8d0f-ab1d528b3baa",
             "fitNote": "Strong private fintech option with a broad growth charter.",
             "isNewToday": False,
+            "applied": False,
             "shortlisted": False,
         },
     ]
@@ -267,6 +273,7 @@ def normalize_job(job: dict, index: int) -> dict:
         "fitNote": fit_note,
         "isNewToday": bool(job.get("isNewToday", False)),
         "applicationStatus": application_status,
+        "applied": bool(job.get("applied", False)),
         "shortlisted": bool(job.get("shortlisted", False)),
     }
 
@@ -425,6 +432,8 @@ class AppHandler(SimpleHTTPRequestHandler):
             if job["id"] == job_id:
                 if "shortlisted" in payload:
                     job["shortlisted"] = bool(payload["shortlisted"])
+                if "applied" in payload:
+                    job["applied"] = bool(payload["applied"])
                 state["lastUpdatedAt"] = utc_now_iso()
                 save_state(state)
                 self.send_json({"ok": True})

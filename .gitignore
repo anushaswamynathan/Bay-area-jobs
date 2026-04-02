@@ -1,3 +1,4 @@
 .pycache/
+data/generated_digest.json
 data/state.json
 logs/

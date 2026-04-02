@@ -14,23 +14,23 @@
   <body>
     <main class="app-shell">
       <section class="hero">
-        <div class="hero-copy-block">
+        <div>
           <p class="eyebrow">Bay Area job search agent</p>
-          <h1>Public-company PM roles first. Startups right behind.</h1>
+          <h1>Bay PM Jobs</h1>
           <p class="hero-copy">
-            A daily digest app for Bay Area product roles in the $190k-$220k range,
-            weighted toward fintech and marketplaces and enriched with equity,
-            benefits, and recruiter details.
+            Daily ranked PM roles with public companies first.
           </p>
         </div>
-        <div class="hero-card">
-          <p class="panel-label">Search frame</p>
-          <ul class="criteria-list" id="criteria-list"></ul>
-          <div class="hero-actions">
-            <button id="open-import-dialog" class="primary-button" type="button">
-              Import daily digest
-            </button>
-          </div>
+        <div class="hero-actions">
+          <button id="open-import-dialog" class="primary-button" type="button">
+            Import digest
+          </button>
+          <button id="toggle-criteria" class="secondary-button" type="button">
+            Search frame
+          </button>
+          <button id="toggle-calendar" class="secondary-button" type="button">
+            Calendar
+          </button>
         </div>
       </section>
 
@@ -51,36 +51,22 @@
           </div>
           <div class="status-card">
             <span class="status-value" id="shortlisted-count">0</span>
-            <span class="status-text">shortlisted</span>
+            <span class="status-text">applied</span>
           </div>
         </div>
       </section>
 
-      <section class="panel">
+      <section id="criteria-panel" class="panel utility-panel" hidden>
         <div class="panel-head">
           <div>
-            <p class="panel-label">Digest calendar</p>
-            <h2 id="calendar-month-label"></h2>
-          </div>
-          <div class="panel-actions">
-            <button id="previous-month" class="secondary-button" type="button">Back</button>
-            <button id="jump-today" class="text-button" type="button">Jump to today</button>
-            <button id="next-month" class="secondary-button" type="button">Next</button>
+            <p class="panel-label">Search frame</p>
+            <h2>Current criteria</h2>
           </div>
         </div>
-        <div class="calendar-weekdays">
-          <span>Sun</span>
-          <span>Mon</span>
-          <span>Tue</span>
-          <span>Wed</span>
-          <span>Thu</span>
-          <span>Fri</span>
-          <span>Sat</span>
-        </div>
-        <div id="calendar-grid" class="calendar-grid"></div>
+        <ul class="criteria-list" id="criteria-list"></ul>
       </section>
 
-      <section class="panel">
+      <section class="panel jobs-panel">
         <div class="panel-head jobs-head">
           <div>
             <p class="panel-label">Daily digest</p>
@@ -91,6 +77,8 @@
             <button class="filter-chip" data-filter="public" type="button">Public only</button>
             <button class="filter-chip" data-filter="private" type="button">Private only</button>
             <button class="filter-chip" data-filter="shortlisted" type="button">Shortlisted</button>
+            <button class="filter-chip" data-filter="active" type="button">Hide applied</button>
+            <button class="filter-chip" data-filter="applied" type="button">Applied</button>
           </div>
         </div>
         <section class="job-group">
@@ -114,6 +102,30 @@
           <div id="overlap-job-list" class="job-list"></div>
         </section>
         <p id="empty-state" class="empty-state">No jobs match the current filter.</p>
+      </section>
+
+      <section id="calendar-panel" class="panel utility-panel" hidden>
+        <div class="panel-head">
+          <div>
+            <p class="panel-label">Digest calendar</p>
+            <h2 id="calendar-month-label"></h2>
+          </div>
+          <div class="panel-actions">
+            <button id="previous-month" class="secondary-button" type="button">Back</button>
+            <button id="jump-today" class="text-button" type="button">Jump to today</button>
+            <button id="next-month" class="secondary-button" type="button">Next</button>
+          </div>
+        </div>
+        <div class="calendar-weekdays">
+          <span>Sun</span>
+          <span>Mon</span>
+          <span>Tue</span>
+          <span>Wed</span>
+          <span>Thu</span>
+          <span>Fri</span>
+          <span>Sat</span>
+        </div>
+        <div id="calendar-grid" class="calendar-grid"></div>
       </section>
     </main>
 
@@ -209,6 +221,7 @@
 
         <div class="job-actions">
           <a class="primary-button apply-link" target="_blank" rel="noreferrer">Open listing</a>
+          <button class="secondary-button applied-button" type="button"></button>
         </div>
       </article>
     </template>

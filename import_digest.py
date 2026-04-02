@@ -17,14 +17,8 @@ def load_payload() -> dict:
     return json.loads(raw)
 
 
-def main() -> int:
-    try:
-        payload = load_payload()
-        normalized = server.normalize_import_payload(payload)
-    except Exception as error:
-        print(f"Import failed: {error}", file=sys.stderr)
-        return 1
-
+def import_payload_to_state(payload: dict) -> dict:
+    normalized = server.normalize_import_payload(payload)
     state = server.load_state()
     state["criteria"] = normalized["criteria"]
     state.setdefault("digestsByDate", {})[normalized["date"]] = {
@@ -34,6 +28,17 @@ def main() -> int:
     }
     state["lastUpdatedAt"] = server.utc_now_iso()
     server.save_state(state)
+    return normalized
+
+
+def main() -> int:
+    try:
+        payload = load_payload()
+        normalized = import_payload_to_state(payload)
+    except Exception as error:
+        print(f"Import failed: {error}", file=sys.stderr)
+        return 1
+
     print(f"Imported {len(normalized['jobs'])} jobs for {normalized['date']}")
     return 0
 

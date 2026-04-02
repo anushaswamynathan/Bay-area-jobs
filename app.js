@@ -4,6 +4,8 @@ const state = {
   selectedDateKey: getDateKey(new Date()),
   visibleMonth: startOfMonth(new Date()),
   activeFilter: "all",
+  criteriaPanelOpen: false,
+  calendarPanelOpen: false,
 };
 
 const elements = {
@@ -11,10 +13,14 @@ const elements = {
   todayLabel: document.querySelector("#today-label"),
   digestSummary: document.querySelector("#digest-summary"),
   criteriaList: document.querySelector("#criteria-list"),
+  criteriaPanel: document.querySelector("#criteria-panel"),
+  calendarPanel: document.querySelector("#calendar-panel"),
   jobCount: document.querySelector("#job-count"),
   publicCount: document.querySelector("#public-count"),
   shortlistedCount: document.querySelector("#shortlisted-count"),
   openImportDialog: document.querySelector("#open-import-dialog"),
+  toggleCriteria: document.querySelector("#toggle-criteria"),
+  toggleCalendar: document.querySelector("#toggle-calendar"),
   importDialog: document.querySelector("#import-dialog"),
   importForm: document.querySelector("#import-form"),
   closeImportDialog: document.querySelector("#close-import-dialog"),
@@ -47,6 +53,8 @@ function wireEvents() {
   elements.nextMonth.addEventListener("click", () => changeVisibleMonth(1));
   elements.jumpToday.addEventListener("click", jumpToToday);
   elements.openImportDialog.addEventListener("click", openImportDialog);
+  elements.toggleCriteria.addEventListener("click", () => toggleUtilityPanel("criteria"));
+  elements.toggleCalendar.addEventListener("click", () => toggleUtilityPanel("calendar"));
   elements.closeImportDialog.addEventListener("click", () => elements.importDialog.close());
   elements.importForm.addEventListener("submit", handleImportSubmit);
   elements.filterChips.forEach((chip) => {
@@ -55,6 +63,16 @@ function wireEvents() {
       render();
     });
   });
+}
+
+function toggleUtilityPanel(panelName) {
+  if (panelName === "criteria") {
+    state.criteriaPanelOpen = !state.criteriaPanelOpen;
+  }
+  if (panelName === "calendar") {
+    state.calendarPanelOpen = !state.calendarPanelOpen;
+  }
+  renderUtilityPanels();
 }
 
 async function refreshState() {
@@ -124,6 +142,7 @@ function render() {
   const overlapJobs = filteredJobs.filter((job) => job.salaryBandFit !== "exact");
   const publicCount = allJobs.filter((job) => job.companyStatus === "public").length;
   const shortlistedCount = allJobs.filter((job) => job.shortlisted).length;
+  const appliedCount = allJobs.filter((job) => job.applied).length;
 
   elements.activeDateCaption.textContent = getRelativeDateLabel(state.selectedDateKey);
   elements.todayLabel.textContent = formatDateLabel(state.selectedDateKey);
@@ -131,13 +150,14 @@ function render() {
     digest?.summary || "No digest is available for this date yet.";
   elements.jobCount.textContent = String(allJobs.length);
   elements.publicCount.textContent = String(publicCount);
-  elements.shortlistedCount.textContent = String(shortlistedCount);
+  elements.shortlistedCount.textContent = String(appliedCount || shortlistedCount);
   elements.exactJobList.innerHTML = "";
   elements.overlapJobList.innerHTML = "";
   elements.emptyState.hidden = filteredJobs.length > 0;
 
   renderCriteria();
   renderFilterState();
+  renderUtilityPanels();
   exactJobs.forEach((job) => {
     elements.exactJobList.appendChild(createJobCard(job));
   });
@@ -145,6 +165,13 @@ function render() {
     elements.overlapJobList.appendChild(createJobCard(job));
   });
   renderCalendar();
+}
+
+function renderUtilityPanels() {
+  elements.criteriaPanel.hidden = !state.criteriaPanelOpen;
+  elements.calendarPanel.hidden = !state.calendarPanelOpen;
+  elements.toggleCriteria.classList.toggle("is-active", state.criteriaPanelOpen);
+  elements.toggleCalendar.classList.toggle("is-active", state.calendarPanelOpen);
 }
 
 function renderCriteria() {
@@ -188,6 +215,7 @@ function createJobCard(job) {
   const fitNote = node.querySelector(".fit-note");
   const applyLink = node.querySelector(".apply-link");
   const saveButton = node.querySelector(".save-button");
+  const appliedButton = node.querySelector(".applied-button");
 
   title.textContent = job.title;
   company.textContent = job.company;
@@ -204,6 +232,8 @@ function createJobCard(job) {
   applyLink.href = job.link;
   saveButton.textContent = job.shortlisted ? "Shortlisted" : "Save";
   saveButton.classList.toggle("is-saved", job.shortlisted);
+  appliedButton.textContent = job.applied ? "Applied" : "Mark applied";
+  appliedButton.classList.toggle("is-active", job.applied);
 
   benefitList.innerHTML = "";
   job.benefits.forEach((benefit) => {
@@ -217,6 +247,12 @@ function createJobCard(job) {
 
   saveButton.addEventListener("click", async () => {
     await updateJob(state.selectedDateKey, job.id, { shortlisted: !job.shortlisted });
+    await refreshState();
+    render();
+  });
+
+  appliedButton.addEventListener("click", async () => {
+    await updateJob(state.selectedDateKey, job.id, { applied: !job.applied });
     await refreshState();
     render();
   });
@@ -255,6 +291,10 @@ function applyFilter(jobs) {
       return jobs.filter((job) => job.companyStatus === "private");
     case "shortlisted":
       return jobs.filter((job) => job.shortlisted);
+    case "active":
+      return jobs.filter((job) => !job.applied);
+    case "applied":
+      return jobs.filter((job) => job.applied);
     default:
       return jobs;
   }

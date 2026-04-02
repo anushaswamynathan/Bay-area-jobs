@@ -1,0 +1,498 @@
+{
+  "criteria": {
+    "titleKeywords": ["product manager"],
+    "preferredIndustries": ["fintech", "marketplace"],
+    "bayAreaKeywords": [
+      "san francisco",
+      "san francisco bay area",
+      "south san francisco",
+      "san mateo",
+      "oakland",
+      "berkeley",
+      "redwood city",
+      "mountain view",
+      "palo alto",
+      "sunnyvale",
+      "santa clara",
+      "san jose",
+      "foster city",
+      "menlo park"
+    ],
+    "salaryMin": 190000,
+    "salaryMax": 220000,
+    "minBenefitsCount": 1,
+    "maxJobsPerDay": 50,
+    "targetJobsPerDay": 50,
+    "fallbackSalaryMin": 170000,
+    "fallbackSalaryMax": 240000
+  },
+  "sources": [
+    {
+      "name": "LinkedIn search",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "linkedin",
+      "listingUrls": [
+        "https://www.linkedin.com/jobs/search/?keywords=product%20manager&location=San%20Francisco%20Bay%20Area",
+        "https://www.linkedin.com/jobs/search/?keywords=senior%20product%20manager&location=San%20Francisco%20Bay%20Area",
+        "https://www.linkedin.com/jobs/search/?keywords=principal%20product%20manager&location=San%20Francisco%20Bay%20Area",
+        "https://www.linkedin.com/jobs/search/?keywords=group%20product%20manager&location=San%20Francisco%20Bay%20Area",
+        "https://www.linkedin.com/jobs/search/?keywords=product%20manager%20fintech&location=San%20Francisco%20Bay%20Area",
+        "https://www.linkedin.com/jobs/search/?keywords=product%20manager%20marketplace&location=San%20Francisco%20Bay%20Area"
+      ],
+      "allowedHosts": ["linkedin.com", "www.linkedin.com"],
+      "detailLinkPatterns": ["/jobs/view/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Indeed search",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "indeed",
+      "listingUrls": [
+        "https://www.indeed.com/jobs?q=product+manager&l=San+Francisco+Bay+Area%2C+CA",
+        "https://www.indeed.com/jobs?q=senior+product+manager&l=San+Francisco+Bay+Area%2C+CA",
+        "https://www.indeed.com/jobs?q=principal+product+manager&l=San+Francisco+Bay+Area%2C+CA",
+        "https://www.indeed.com/jobs?q=product+manager+fintech&l=San+Francisco+Bay+Area%2C+CA",
+        "https://www.indeed.com/jobs?q=product+manager+marketplace&l=San+Francisco+Bay+Area%2C+CA"
+      ],
+      "allowedHosts": ["indeed.com", "www.indeed.com"],
+      "detailLinkPatterns": ["/viewjob", "/cmp/"],
+      "maxDetailPages": 30
+    },
+    {
+      "name": "Glassdoor search",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "glassdoor",
+      "listingUrls": [
+        "https://www.glassdoor.com/Job/san-francisco-product-manager-jobs-SRCH_IL.0,13_IC1147401_KO14,29.htm",
+        "https://www.glassdoor.com/Job/san-francisco-senior-product-manager-jobs-SRCH_IL.0,13_IC1147401_KO14,36.htm"
+      ],
+      "allowedHosts": ["glassdoor.com", "www.glassdoor.com"],
+      "detailLinkPatterns": ["/job-listing/", "/Job/"],
+      "maxDetailPages": 20
+    },
+    {
+      "name": "Uber careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Uber",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NYSE: UBER",
+      "industries": ["marketplace", "mobility"],
+      "listingUrls": [
+        "https://www.uber.com/us/en/careers/list/?query=product%20manager&location=San%20Francisco%2C%20CA%2C%20United%20States"
+      ],
+      "allowedHosts": ["uber.com", "www.uber.com"],
+      "detailLinkPatterns": ["/careers/list/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Walmart careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Walmart",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NYSE: WMT",
+      "industries": ["marketplace", "commerce"],
+      "listingUrls": [
+        "https://careers.walmart.com/results?q=product%20manager"
+      ],
+      "allowedHosts": ["careers.walmart.com", "walmart.com"],
+      "detailLinkPatterns": ["/us/jobs/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Google careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Google",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: GOOGL",
+      "industries": ["platform", "marketplace"],
+      "listingUrls": [
+        "https://www.google.com/about/careers/applications/jobs/results/?q=product%20manager"
+      ],
+      "allowedHosts": ["google.com", "www.google.com"],
+      "detailLinkPatterns": ["/about/careers/applications/jobs/results/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Apple jobs",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Apple",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: AAPL",
+      "industries": ["platform", "consumer"],
+      "listingUrls": [
+        "https://jobs.apple.com/en-us/search?search=product%20manager"
+      ],
+      "allowedHosts": ["jobs.apple.com", "apple.com"],
+      "detailLinkPatterns": ["/details/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Meta careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Meta",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: META",
+      "industries": ["marketplace", "ads", "consumer"],
+      "listingUrls": [
+        "https://www.metacareers.com/jobs/?q=product%20manager"
+      ],
+      "allowedHosts": ["metacareers.com", "www.metacareers.com"],
+      "detailLinkPatterns": ["/jobs/"],
+      "maxDetailPages": 60
+    },
+    {
+      "name": "Airbnb careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Airbnb",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: ABNB",
+      "industries": ["marketplace", "travel"],
+      "listingUrls": [
+        "https://careers.airbnb.com/positions/?_sf_s=product%20manager"
+      ],
+      "allowedHosts": ["careers.airbnb.com", "airbnb.com"],
+      "detailLinkPatterns": ["/positions/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "DoorDash careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "DoorDash",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: DASH",
+      "industries": ["marketplace", "commerce"],
+      "listingUrls": [
+        "https://careersatdoordash.com/search/?q=product%20manager"
+      ],
+      "allowedHosts": ["careersatdoordash.com", "doordash.com"],
+      "detailLinkPatterns": ["/job/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Coinbase careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Coinbase",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: COIN",
+      "industries": ["fintech", "crypto"],
+      "listingUrls": [
+        "https://www.coinbase.com/careers/positions?query=product%20manager"
+      ],
+      "allowedHosts": ["coinbase.com", "www.coinbase.com"],
+      "detailLinkPatterns": ["/careers/positions/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Robinhood careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Robinhood",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: HOOD",
+      "industries": ["fintech"],
+      "listingUrls": [
+        "https://careers.robinhood.com/search?query=product%20manager"
+      ],
+      "allowedHosts": ["careers.robinhood.com", "robinhood.com"],
+      "detailLinkPatterns": ["/search?query=", "/positions/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Stripe careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Stripe",
+      "companyStatus": "private",
+      "companySizeHint": "Late-stage private company",
+      "companySharesNote": "Private company, no public shares",
+      "industries": ["fintech", "payments"],
+      "listingUrls": [
+        "https://stripe.com/jobs/search?query=product%20manager"
+      ],
+      "allowedHosts": ["stripe.com", "www.stripe.com"],
+      "detailLinkPatterns": ["/jobs/listing/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Block careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Block",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NYSE: XYZ",
+      "industries": ["fintech", "payments", "commerce"],
+      "listingUrls": [
+        "https://block.xyz/careers/jobs?query=product%20manager"
+      ],
+      "allowedHosts": ["block.xyz", "www.block.xyz"],
+      "detailLinkPatterns": ["/careers/jobs/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "PayPal careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "PayPal",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: PYPL",
+      "industries": ["fintech", "payments"],
+      "listingUrls": [
+        "https://paypal.eightfold.ai/careers?query=product%20manager"
+      ],
+      "allowedHosts": ["paypal.eightfold.ai", "paypal.com"],
+      "detailLinkPatterns": ["/careers/job", "/careers?query="],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "SoFi careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "SoFi",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: SOFI",
+      "industries": ["fintech", "consumer finance"],
+      "listingUrls": [
+        "https://www.sofi.com/careers/search/?q=product%20manager"
+      ],
+      "allowedHosts": ["sofi.com", "www.sofi.com"],
+      "detailLinkPatterns": ["/careers/job/", "/careers/search/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Affirm careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Affirm",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: AFRM",
+      "industries": ["fintech", "payments"],
+      "listingUrls": [
+        "https://www.affirm.com/careers/open-roles?department=Product"
+      ],
+      "allowedHosts": ["affirm.com", "www.affirm.com"],
+      "detailLinkPatterns": ["/careers/open-roles/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Brex careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Brex",
+      "companyStatus": "private",
+      "companySizeHint": "Late-stage private company",
+      "companySharesNote": "Private company, no public shares",
+      "industries": ["fintech", "payments"],
+      "listingUrls": [
+        "https://www.brex.com/careers?query=product%20manager"
+      ],
+      "allowedHosts": ["brex.com", "www.brex.com"],
+      "detailLinkPatterns": ["/careers/", "/jobs/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Chime careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Chime",
+      "companyStatus": "private",
+      "companySizeHint": "Late-stage private company",
+      "companySharesNote": "Private company, no public shares",
+      "industries": ["fintech", "consumer finance"],
+      "listingUrls": [
+        "https://careers.chime.com/en/jobs/?search=product%20manager"
+      ],
+      "allowedHosts": ["careers.chime.com", "chime.com"],
+      "detailLinkPatterns": ["/en/jobs/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "NexHealth careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "NexHealth",
+      "companyStatus": "private",
+      "companySizeHint": "Growth-stage private company",
+      "companySharesNote": "Private company, no public shares",
+      "industries": ["fintech", "healthcare"],
+      "listingUrls": [
+        "https://www.nexhealth.com/careers/open-positions"
+      ],
+      "allowedHosts": ["nexhealth.com", "www.nexhealth.com", "boards.greenhouse.io"],
+      "detailLinkPatterns": ["gh_jid=", "/embed/job_app", "/jobs/"],
+      "maxDetailPages": 30
+    },
+    {
+      "name": "Instacart careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Instacart",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: CART",
+      "industries": ["marketplace", "ecommerce"],
+      "listingUrls": [
+        "https://instacart.careers/current-openings/?search=product%20manager"
+      ],
+      "allowedHosts": ["instacart.careers", "instacart.com"],
+      "detailLinkPatterns": ["/job/", "/current-openings/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "eBay careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "eBay",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: EBAY",
+      "industries": ["ecommerce", "marketplace"],
+      "listingUrls": [
+        "https://jobs.ebayinc.com/us/en/search-results?keywords=product%20manager"
+      ],
+      "allowedHosts": ["jobs.ebayinc.com", "ebayinc.com"],
+      "detailLinkPatterns": ["/job/", "/search-results"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Etsy careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Etsy",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: ETSY",
+      "industries": ["ecommerce", "marketplace"],
+      "listingUrls": [
+        "https://careers.etsy.com/global/en/search-results?keywords=product%20manager"
+      ],
+      "allowedHosts": ["careers.etsy.com", "etsy.com"],
+      "detailLinkPatterns": ["/job/", "/search-results"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Shopify careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Shopify",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: SHOP",
+      "industries": ["ecommerce", "commerce platform"],
+      "listingUrls": [
+        "https://www.shopify.com/careers/search?query=product%20manager"
+      ],
+      "allowedHosts": ["shopify.com", "www.shopify.com"],
+      "detailLinkPatterns": ["/careers/search", "/careers/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Wayfair careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Wayfair",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NYSE: W",
+      "industries": ["ecommerce"],
+      "listingUrls": [
+        "https://www.wayfair.com/careers/jobs?keywords=product%20manager"
+      ],
+      "allowedHosts": ["wayfair.com", "www.wayfair.com"],
+      "detailLinkPatterns": ["/careers/jobs", "/job/"],
+      "maxDetailPages": 40
+    },
+    {
+      "name": "Amazon jobs",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Amazon",
+      "companyStatus": "public",
+      "companySizeHint": "Large public company",
+      "companySharesNote": "NASDAQ: AMZN",
+      "industries": ["ecommerce", "marketplace"],
+      "listingUrls": [
+        "https://www.amazon.jobs/en/search?base_query=product%20manager"
+      ],
+      "allowedHosts": ["amazon.jobs", "www.amazon.jobs"],
+      "detailLinkPatterns": ["/jobs/"],
+      "maxDetailPages": 60
+    },
+    {
+      "name": "Greenhouse boards",
+      "type": "greenhouse",
+      "enabled": false,
+      "sourceType": "greenhouse",
+      "boards": [
+        {
+          "boardToken": "your-company-board",
+          "company": "Example Greenhouse Company",
+          "companyStatus": "private",
+          "companySizeHint": "Growth-stage private company",
+          "industries": ["fintech"]
+        }
+      ]
+    },
+    {
+      "name": "Lever boards",
+      "type": "lever",
+      "enabled": false,
+      "sourceType": "lever",
+      "sites": [
+        {
+          "site": "your-company-site",
+          "company": "Example Lever Company",
+          "companyStatus": "private",
+          "companySizeHint": "Startup",
+          "industries": ["marketplace"]
+        }
+      ]
+    }
+  ]
+}
