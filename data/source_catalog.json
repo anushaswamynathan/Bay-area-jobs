@@ -530,17 +530,44 @@
       "maxDetailPages": 24
     },
     {
+      "name": "Verily careers",
+      "type": "html_search",
+      "enabled": true,
+      "sourceType": "company",
+      "company": "Verily",
+      "companyStatus": "private",
+      "companySizeHint": "Growth-stage private company",
+      "companySharesNote": "Alphabet subsidiary, private company with no direct public shares",
+      "industries": ["healthtech", "platform"],
+      "listingUrls": [
+        "https://verily.wd1.myworkdayjobs.com/Verily_Careers"
+      ],
+      "allowedHosts": ["verily.wd1.myworkdayjobs.com"],
+      "detailLinkPatterns": ["/job/"],
+      "maxDetailPages": 24
+    },
+    {
       "name": "Greenhouse boards",
       "type": "greenhouse",
-      "enabled": false,
+      "enabled": true,
       "sourceType": "greenhouse",
       "boards": [
         {
-          "boardToken": "your-company-board",
-          "company": "Example Greenhouse Company",
+          "boardToken": "databricks",
+          "company": "Databricks",
+          "companyStatus": "private",
+          "companySizeHint": "Late-stage private company",
+          "companySharesNote": "Private company, no public shares",
+          "industries": ["data platform", "ai platform"]
+        },
+        {
+          "boardToken": "workato",
+          "company": "Workato",
+          "companyStatus": "private",
           "companyStatus": "private",
           "companySizeHint": "Growth-stage private company",
-          "industries": ["fintech"]
+          "companySharesNote": "Private company, no public shares",
+          "industries": ["automation", "enterprise software"]
         }
       ]
     },
